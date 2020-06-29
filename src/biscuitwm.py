@@ -2,21 +2,19 @@
 
 from Xlib.display import Display
 from Xlib import X, XK, Xatom, Xcursorfont
-import sys
+from os import system
 
 
 class DeskBar:
     def __init__(self, display, msg):
         self.display = display
         self.msg = msg
-        self.start = None
-        self.attr = None
 
         self.screen = self.display.screen()
         screen_dimensions = self.screen.root.get_geometry()
         screen_width, screen_height = screen_dimensions.width, screen_dimensions.height
         self.window = self.screen.root.create_window(
-            0, 0, screen_width, 20, 1,
+            -1, -1, screen_width, 20, 1,
             self.screen.root_depth,
             background_pixel=self.screen.white_pixel,
             event_mask=X.ExposureMask | X.KeyPressMask,
@@ -29,27 +27,27 @@ class DeskBar:
         self.window.map()
 
     def loop(self):
-        while True:
-            e = self.display.next_event()
-
-            if e.type == X.Expose:
-                self.window.fill_rectangle(self.gc, 0, 0, 20, 20)
-                self.window.draw_text(self.gc, 25, 15, self.msg)
-            elif e.type == X.ButtonPress:
-                self.attr = self.window.get_geometry()
-                self.start = e
-            elif e.type == X.MotionNotify and self.start:
-                xdiff = e.root_x - self.start.root_x
-                ydiff = e.root_y - self.start.root_y
-                self.start.child.configure(
-                    x=self.attr.x + (self.start.detail == 1 and xdiff or 0),
-                    y=self.attr.y + (self.start.detail == 1 and ydiff or 0),
-                    width=max(1, self.attr.width + (self.start.detail == 3 and xdiff or 0)),
-                    height=max(1, self.attr.height + (self.start.detail == 3 and ydiff or 0))
-                )
-            elif e.type == X.ButtonRelease:
-                self.start = None
-                self.attr = None
+        self.window.grab_button(
+            1,
+            X.NONE,
+            1,
+            X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask,
+            X.GrabModeAsync,
+            X.GrabModeAsync,
+            X.NONE,
+            X.NONE
+        )
+        while 1:
+            ev = self.display.next_event()
+            if ev.type == X.Expose:
+                self.window.fill_rectangle(self.gc, 5, 5, 10, 10)
+                self.window.draw_text(self.gc, 20, 15, self.msg)
+            elif ev.type == X.ButtonPress:
+                print("Deskbar clicked")
+                system("xterm")
+            elif ev.type == X.Above:
+                print("Deskbar raised")
+                self.window.configure(stack_mode=X.Above)
 
 
 class BiscuitSession:
@@ -102,6 +100,11 @@ class BiscuitSession:
             self.start = None
             self.attr = None
         self.dpy.flush()
+
+    def loop(self):
+        while 1:
+            ev = self.dpy.next_event()
+            self.event_handler(ev)
     
     def main(self):
         # Register keyboard and mouse events
@@ -111,6 +114,16 @@ class BiscuitSession:
             1,
             X.GrabModeAsync,
             X.GrabModeAsync
+        )
+        self.dpy_root.grab_button(
+            1,
+            X.NONE,
+            1,
+            X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask,
+            X.GrabModeAsync,
+            X.GrabModeAsync,
+            X.NONE,
+            X.NONE
         )
         self.dpy_root.grab_button(
             1,
@@ -136,11 +149,8 @@ class BiscuitSession:
         DeskBar(self.dpy, "BiscuitWM").loop()
 
         # Event loop
-        while True:
-            ev = self.dpy.next_event()
-            self.event_handler(ev)
+        self.loop()
 
 
-session = BiscuitSession()
-session.main()
+BiscuitSession().main()
 
