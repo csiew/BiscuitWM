@@ -1,6 +1,5 @@
 #!/bin/sh
 xsetroot -solid "#008B8B"
 xrdb -load $HOME/.Xdefaults
-x-terminal-emulator
-x-terminal-emulator
-exec /usr/bin/python3 /usr/bin/biscuitwm.py
+xterm
+exec /usr/bin/biscuitwm
