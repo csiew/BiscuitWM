@@ -1,0 +1,2 @@
+# BiscuitWM
+**BiscuitWM** is an X11 window manager based on the Python version of [TinyWM](https://github.com/mackstann/tinywm) by Nick Welch ([mackstann](https://github.com/mackstann)). This window manager is largely to expand my understanding of the X11 libraries via Python.
