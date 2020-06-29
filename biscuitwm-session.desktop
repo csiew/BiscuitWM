@@ -1,0 +1,11 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=BiscuitWM session
+Comment=Delicious window manager
+Exec=biscuitwm-session
+Terminal=False
+TryExec=biscuitwm
+Type=Application
+
+[Window Manager]
+SessionManaged=true
