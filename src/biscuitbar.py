@@ -1,12 +1,13 @@
 from Xlib.display import Display
 from Xlib import X, XK, Xatom, Xcursorfont
+import os
 import sys
-from os import system
 
 
-class DeskBar:
-    def __init__(self):
-        self.dpy = Display()
+class BiscuitBar:
+    def __init__(self, dpy, session_info):
+        self.session_info = session_info
+        self.dpy = dpy
         self.dpy_root = self.dpy.screen().root
         self.deskbar = None
         self.deskbar_gc = None
@@ -29,10 +30,11 @@ class DeskBar:
 
     def draw_deskbar_content(self):
         self.deskbar.fill_rectangle(self.deskbar_gc, 5, 5, 10, 10)
-        self.deskbar.draw_text(self.deskbar_gc, 20, 15, "BiscuitWM")
+        self.deskbar.draw_text(self.deskbar_gc, 20, 15, self.session_info.session_name)
+        self.deskbar.draw_text(self.deskbar_gc, 120, 15, self.session_info.kernel_version)
 
     def loop(self):
-        self.dpy_root.grab_button(
+        self.deskbar.grab_button(
             1,
             X.NONE,
             1,
@@ -49,7 +51,6 @@ class DeskBar:
             elif ev.type == X.ButtonPress:
                 print("Deskbar clicked")
                 self.dpy_root.configure(stack_mode=X.Above)
-                system("xterm")
             elif ev.type == X.Above:
                 print("Deskbar raised")
             self.dpy.flush()
@@ -60,6 +61,3 @@ class DeskBar:
         except KeyboardInterrupt:
             sys.exit(0)
 
-
-if __name__ == "__main__":
-    DeskBar().main()
