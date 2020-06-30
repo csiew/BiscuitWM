@@ -29,9 +29,10 @@ Note that whichever window your cursor is hovering over will be the active windo
 - `Alt + F1`: Raise currently focused window
 
 ## Emulation guide
-Instead of constantly logging off, switching the Xsession, then logging in again to test, it will be easier to just run an embedded Xsession within your current session.
+Instead of constantly logging off, switching the Xsession, then logging in again to test, it will be easier to just run an embedded Xsession within your current session. To do this, install the Xephyr package (`xserver-xephyr`).
 
-To do this, install the Xephyr package (`xserver-xephyr`). Then, open a terminal and run:
+### Manual
+Open a terminal and run:
 ```bash
 Xephyr -br -ac -noreset -screen 1024x780 :1 &
 ```
@@ -39,8 +40,25 @@ You should then see a Xephyr window popup (nothing will be visible since there i
 ```bash
 DISPLAY=:1
 ```
-...to send commands to this new Xephyr window. Once you're done with testing, you may want to just reuse the same terminal for local commands. Thus, enter this command:
+...to send commands to this new Xephyr window.
+Then start the BiscuitWM session:
+```bash
+biscuitwm-session
+```
+
+Once you're done with testing, you may want to just reuse the same terminal for local commands. Thus, enter this command:
 ```bash
 DISPLAY=:0
 ```
 ...to resume sending commands to your current Xsession.
+
+### Partially automated*
+Open a terminal in the same directory as the BiscuitWM files and run:
+```bash
+sudo sh run_dev.sh
+```
+Then start the BiscuitWM session:
+```bash
+biscuitwm-session
+```
+The `run_dev.sh` script will be improved in the future.
