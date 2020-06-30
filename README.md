@@ -3,7 +3,32 @@
 
 Development and testing is being done in a Debian 10.4.0 virtual machine.
 
-## How to emulate
+## Install guide
+Before running BiscuitWM, you must have the `python-xlib` library installed. To do so, use the `pip` Python package manager to install it:
+```
+python -m pip install python-xlib
+```
+To install BiscuitWM on your system, run the `install.sh` as `sudo` (as we need to `chmod` the scripts to run the Python files):
+```
+sudo sh install.sh
+```
+To run the uninstall script, run the `uninstall.sh` script as `sudo` as well:
+```
+sudo sh uninstall.sh
+```
+
+## User guide
+At the moment, BiscuitWM follows the hybrid keyboard and mouse driven interaction from TinyWM. Future iterations will seek to add titlebars to allow for mouse-first interactivity.
+
+Note that whichever window your cursor is hovering over will be the active window. Future iterations will require the window to be raised by clicking on the window.
+
+### Keyboard shortcuts
+- `Alt + Left Click`: Move window
+- `Alt + Left Click` and drag: Raise window
+- `Alt + Right Click` and drag: Resize window
+- `Alt + F1`: Raise currently focused window
+
+## Emulation guide
 Instead of constantly logging off, switching the Xsession, then logging in again to test, it will be easier to just run an embedded Xsession within your current session.
 
 To do this, install the Xephyr package (`xserver-xephyr`). Then, open a terminal and run:
