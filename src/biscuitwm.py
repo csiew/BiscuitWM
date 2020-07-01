@@ -8,39 +8,9 @@ from Xlib import X, XK, Xatom, Xcursorfont
 
 PNT_OFFSET = 16
 
-
 AUTO_WINDOW_PLACE = True
+AUTO_WINDOW_FIT = True
 DRAW_DESKBAR = True
-
-EVENT_HANDLER = {
-    X.KeyPress: 'handle_keypress',
-}
-
-KEYBOARD_HANDLER = {
-    'Tab':
-    {'modifier': X.Mod1Mask | X.Mod2Mask, 'method': 'cb_focus_next_window'},
-    'm': {
-        'modifier': X.Mod1Mask | X.Mod2Mask, 'method':
-        'cb_raise_or_lower_window'
-    },
-    '1': {
-        'modifier': X.Mod1Mask | X.Mod2Mask, 'command':
-        'pidof xterm || xterm &'
-    },
-    # for debugging
-    'Delete': {'modifier': X.Mod1Mask | X.Mod2Mask, 'function': 'restart'},
-    'equal': {'modifier': X.Mod1Mask | X.Mod2Mask, 'function': 'exit'},
-}
-
-
-def restart():
-    print("Restarting %s...", sys.argv[0])
-    os.execvp(sys.argv[0], [sys.argv[0]])
-
-
-def exit():
-    print("Terminating...")
-    sys.exit()
 
 
 class SessionInfo:
@@ -75,84 +45,13 @@ class Session:
 
         self.set_cursor(self.dpy_root)
 
-    def grab_keys(self):
-        for string, entry in KEYBOARD_HANDLER.items():
-            keysym = XK.string_to_keysym(string)
-            keycode = self.dpy.keysym_to_keycode(keysym)
-            if not keycode:
-                continue
+    ### QUERY METHODS
 
-            modifier = entry.get('modifier', X.NONE)
-            self.dpy_root.grab_key(keycode, modifier, True, X.GrabModeAsync, X.GrabModeAsync)
-            self.key_handlers[keycode] = entry
-            print("Grab key: %s, %s", string, entry)
-
-    def handle_keypress(self, ev):
-        keycode = ev.detail
-        entry = self.key_handlers.get(keycode, None)
-        if not entry:
-            return
-
-        print("Keypress: %s -> %s", keycode, entry)
-        args = entry.get('args', None)
-        if 'method' in entry:
-            method = getattr(self, entry['method'], None)
-            if method:
-                if args is not None:
-                    method(args)
-                else:
-                    method(ev)
-            else:
-                print("Method not reachable: %s", entry['method'])
-        elif 'function' in entry:
-            function = globals().get(entry['function'], None)
-            if function:
-                if args is not None:
-                    function(args)
-                else:
-                    function()
-            else:
-                print("Function not reachable: %s", entry['function'])
-        elif 'command' in entry:
-            os.system(entry['command'])
-
-    def set_cursor(self, window):
-        font = self.dpy.open_font('cursor')
-        cursor = font.create_glyph_cursor(
-            font,
-            Xcursorfont.left_ptr,
-            Xcursorfont.left_ptr + 1,
-            (65535, 65535, 65535),
-            (0, 0, 0)
-        )
-        window.change_attributes(cursor=cursor)
-
-    def draw_deskbar(self):
-        screen_dimensions = self.dpy_root.get_geometry()
-        screen_width, screen_height = screen_dimensions.width, screen_dimensions.height
-        self.deskbar = self.dpy_root.create_window(
-            -1, -1, screen_width, 20, 1,
-            self.screen.root_depth,
-            background_pixel=self.screen.white_pixel,
-            event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
-        )
-        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_type_dock, ], X.PropModeReplace)
-        self.deskbar_gc = self.deskbar.create_gc(
-            foreground=self.screen.black_pixel,
-            background=self.screen.white_pixel,
-        )
-        self.deskbar.map()
-        self.draw_deskbar_content()
-        print(self.deskbar.get_full_property(self.wm_window_type, Xatom.ATOM).value[0])
-        print(self.wm_window_type_dock)
-
-    def draw_deskbar_content(self):
-        self.deskbar.fill_rectangle(self.deskbar_gc, 5, 5, 10, 10)
-        self.deskbar.draw_text(self.deskbar_gc, 20, 15, self.session_info.session_name)
-        self.deskbar.draw_text(self.deskbar_gc, 120, 15, self.session_info.kernel_version)
+    def get_display_geometry(self):
+        return self.dpy_root.get_geometry()
     
     def window_list(self):
-        return [x for x in self.dpy_root.get_full_property(self.dpy.intern_atom('_NET_CLIENT_LIST'), Xatom.WINDOW).value]
+        return self.dpy_root.query_tree().children
 
     def is_managed_window(self, window):
         return window in self.managed_windows
@@ -197,6 +96,8 @@ class Session:
     def get_window_shortname(self, window):
         return '0x{:x} [{}]'.format(window.id, self.get_window_class(window))
 
+    ### WINDOW CONTROLS
+
     def manage_window(self, window):
         """Bring all existing windows into window manager's control."""
         attributes = self.get_window_attributes(window)
@@ -215,6 +116,8 @@ class Session:
         mask = X.EnterWindowMask | X.LeaveWindowMask
         window.change_attributes(event_mask=mask)
 
+        self.decorate_window(window)
+
     def unmanage_window(self, window):
         if self.is_managed_window(window):
             print("Unmanaging window: %s", self.get_window_shortname(window))
@@ -228,23 +131,6 @@ class Session:
         if self.is_managed_window(window):
             window.destroy()
             self.unmanage_window(window)
-
-    def decorate_window(self, ev):
-        self.set_cursor(ev.window)
-        # Move new window out of the way of the deskbar
-        if AUTO_WINDOW_PLACE is True:
-            if self.is_dock(ev.window) is False:
-                current_x, current_y = ev.x, ev.y
-                new_x = current_x + 10
-                new_y = current_y + 30
-                current_dimensions = self.get_window_geometry(ev.window)
-                ev.window.configure(
-                    x=new_x,
-                    y=new_y,
-                    width=current_dimensions.width,
-                    height=current_dimensions.height
-                )
-                self.set_unfocus_window_border(ev.window)
 
     def raise_window(self, window):
         if not self.is_managed_window(window):
@@ -296,13 +182,32 @@ class Session:
         next_window.warp_pointer(PNT_OFFSET, PNT_OFFSET)
         self.focus_window(next_window)
 
-    def cb_raise_or_lower_window(self, event):
-        window = event.child
-        self.raise_or_lower_window(window)
+    ### WINDOW DECORATION
 
-    def cb_focus_next_window(self, event):
-        window = event.child
-        self.focus_next_window(window)
+    def decorate_window(self, window):
+        self.set_cursor(window)
+        window_x = 10
+        window_y = 30
+        window_dimensions = self.get_window_geometry(window)
+        window_width = window_dimensions.width
+        window_height = window_dimensions.height
+        display_dimensions = self.get_display_geometry()
+        if self.is_dock(window) is False:
+            if AUTO_WINDOW_PLACE is True:
+                # Move new window out of the way of the deskbar
+                if AUTO_WINDOW_FIT is True:
+                    # Resize window to fit the screen
+                    if window_dimensions.width+window_x >= display_dimensions.width:
+                        window_width -= window_x*2
+                    if window_dimensions.height+window_y >= display_dimensions.height:
+                        window_height -= window_y*2
+                window.configure(
+                    x=window_x,
+                    y=window_y,
+                    width=window_width,
+                    height=window_height
+                )
+                self.set_unfocus_window_border(window)
 
     def set_unfocus_window_border(self, window):
         border_color = self.colormap.alloc_named_color(\
@@ -316,6 +221,42 @@ class Session:
         window.configure(border_width=1)
         window.change_attributes(None, border_pixel=border_color)
 
+    def set_cursor(self, window):
+        font = self.dpy.open_font('cursor')
+        cursor = font.create_glyph_cursor(
+            font,
+            Xcursorfont.left_ptr,
+            Xcursorfont.left_ptr + 1,
+            (65535, 65535, 65535),
+            (0, 0, 0)
+        )
+        window.change_attributes(cursor=cursor)
+
+    def draw_deskbar(self):
+        screen_dimensions = self.get_display_geometry()
+        screen_width, screen_height = screen_dimensions.width, screen_dimensions.height
+        self.deskbar = self.dpy_root.create_window(
+            -1, -1, screen_width, 20, 1,
+            self.screen.root_depth,
+            background_pixel=self.screen.white_pixel,
+            event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
+        )
+        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_type_dock, ], X.PropModeReplace)
+        self.deskbar_gc = self.deskbar.create_gc(
+            foreground=self.screen.black_pixel,
+            background=self.screen.white_pixel,
+        )
+        self.deskbar.map()
+        self.draw_deskbar_content()
+        print(self.deskbar.get_full_property(self.wm_window_type, Xatom.ATOM).value[0])
+        print(self.wm_window_type_dock)
+
+    def draw_deskbar_content(self):
+        self.raise_window(self.deskbar)
+        self.deskbar.fill_rectangle(self.deskbar_gc, 5, 5, 10, 10)
+        self.deskbar.draw_text(self.deskbar_gc, 20, 15, self.session_info.session_name)
+        self.deskbar.draw_text(self.deskbar_gc, 120, 15, self.session_info.kernel_version)
+
     def loop(self):
         while 1:
             ev = self.dpy.next_event()
@@ -323,27 +264,31 @@ class Session:
             if ev.type == X.CreateNotify:
                 try:
                     self.manage_window(ev.window)
-                    self.decorate_window(ev)
                 except AttributeError:
                     print("Unable to handle new window")
                     pass
-            elif ev.type == X.KeyPress and ev.child == X.NONE:
-                self.handle_keypress(ev)
-            elif ev.type == X.KeyPress and ev.child != X.NONE:
-                ev.child.raise_window()
+            elif ev.type == X.DestroyNotify:
+                try:
+                    self.unmanage_window(ev.window)
+                except AttributeError:
+                    print("Unable to unhandle new window")
+                    pass
+            elif (ev.type == X.KeyPress or ev.type == X.EnterNotify) and ev.child != X.NONE:
+                self.raise_window(ev.child)
             elif ev.type == X.ButtonPress and ev.child != X.NONE:
-                ev.child.raise_window()
+                self.raise_window(ev.child)
                 self.attr = ev.child.get_geometry()
                 self.start = ev
             elif ev.type == X.MotionNotify and self.start:
                 xdiff = ev.root_x - self.start.root_x
                 ydiff = ev.root_y - self.start.root_y
-                self.start.child.configure(
-                    x = self.attr.x + (self.start.detail == 1 and xdiff or 0),
-                    y = self.attr.y + (self.start.detail == 1 and ydiff or 0),
-                    width = max(1, self.attr.width + (self.start.detail == 3 and xdiff or 0)),
-                    height = max(1, self.attr.height + (self.start.detail == 3 and ydiff or 0))
-                )
+                if not self.is_dock(self.start.child):
+                    self.start.child.configure(
+                        x = self.attr.x + (self.start.detail == 1 and xdiff or 0),
+                        y = self.attr.y + (self.start.detail == 1 and ydiff or 0),
+                        width = max(1, self.attr.width + (self.start.detail == 3 and xdiff or 0)),
+                        height = max(1, self.attr.height + (self.start.detail == 3 and ydiff or 0))
+                    )
             elif ev.type == X.ButtonRelease:
                 self.start = None
                 self.attr = None
@@ -386,13 +331,14 @@ class Session:
         if DRAW_DESKBAR is True:
             self.draw_deskbar()
 
-        for child in self.dpy_root.query_tree().children:
+        children = self.window_list()
+        for child in children:
             if child.get_attributes().map_state:
                 self.manage_window(child)
-            for window in self.managed_windows:
-                self.set_unfocus_window_border(window)
+            '''
             window = self.managed_windows[-1]
             self.focus_window(window)
+            '''
 
         # Event loop
         try:
