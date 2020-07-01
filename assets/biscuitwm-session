@@ -1,5 +1,0 @@
-#!/bin/sh
-xsetroot -solid "#4682B4"
-# xrdb -load $HOME/.Xdefaults
-# xterm &
-exec /usr/bin/biscuitwm
