@@ -137,6 +137,7 @@ class Session:
             return
         window.configure(stack_mode=X.Above)
         self.last_raised_window = window
+        self.set_focus_window_border(window)
 
     def lower_window(self, window):
         if not self.is_managed_window(window):
@@ -186,8 +187,8 @@ class Session:
 
     def decorate_window(self, window):
         self.set_cursor(window)
-        window_x = 10
-        window_y = 30
+        window_x = 5
+        window_y = 25
         window_dimensions = self.get_window_geometry(window)
         window_width = window_dimensions.width
         window_height = window_dimensions.height
@@ -216,10 +217,11 @@ class Session:
         window.change_attributes(None, border_pixel=border_color)
 
     def set_focus_window_border(self, window):
-        border_color = self.colormap.alloc_named_color(\
-            "#ff0000").pixel
-        window.configure(border_width=1)
-        window.change_attributes(None, border_pixel=border_color)
+        if not self.is_dock(window):
+            border_color = self.colormap.alloc_named_color(\
+                "#ff0000").pixel
+            window.configure(border_width=1)
+            window.change_attributes(None, border_pixel=border_color)
 
     def set_cursor(self, window):
         font = self.dpy.open_font('cursor')
@@ -257,9 +259,36 @@ class Session:
         self.deskbar.draw_text(self.deskbar_gc, 20, 15, self.session_info.session_name)
         self.deskbar.draw_text(self.deskbar_gc, 120, 15, self.session_info.kernel_version)
 
+    # DEBUG
+    def print_event_type(self, ev):
+        event = ev.type
+        msg = "Unknown"
+        if event == X.CreateNotify:
+            msg = "CreateNotify"
+        elif event == X.DestroyNotify:
+            msg = "DestroyNotify"
+        elif event == X.MapNotify:
+            msg = "MapNotify"
+        elif event == X.FocusIn:
+            msg = "FocusIn"
+        elif event == X.FocusOut:
+            msg = "FocusIn"
+        elif event == X.EnterNotify:
+            msg = "EnterNotify"
+        elif event == X.LeaveNotify:
+            msg = "LeaveNotify"
+        elif event == X.MotionNotify:
+            msg = "MotionNotify"
+        elif event == X.KeyPress:
+            msg = "KeyPress"
+        elif event == X.ButtonPress:
+            msg = "ButtonPress"
+        print(msg + " event")
+
     def loop(self):
         while 1:
             ev = self.dpy.next_event()
+            self.print_event_type(ev)
 
             if ev.type == X.CreateNotify:
                 try:
@@ -273,7 +302,11 @@ class Session:
                 except AttributeError:
                     print("Unable to unhandle new window")
                     pass
-            elif (ev.type == X.KeyPress or ev.type == X.EnterNotify) and ev.child != X.NONE:
+            elif ev.type == X.EnterNotify:
+                self.raise_window(ev.window)
+            elif ev.type == X.LeaveNotify:
+                self.set_unfocus_window_border(ev.window)
+            elif ev.type == X.KeyPress and ev.child != X.NONE:
                 self.raise_window(ev.child)
             elif ev.type == X.ButtonPress and ev.child != X.NONE:
                 self.raise_window(ev.child)
