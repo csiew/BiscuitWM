@@ -2,12 +2,14 @@
 
 import os
 import sys
+import subprocess
 from Xlib.display import Display
 from Xlib import X, XK, Xatom, Xcursorfont
 
 
 PNT_OFFSET = 16
 
+DEBUG = True
 AUTO_WINDOW_PLACE = True
 AUTO_WINDOW_FIT = True
 DRAW_DESKBAR = True
@@ -108,7 +110,8 @@ class Session:
         if self.is_managed_window(window):
             return
 
-        print("Found window: %s", self.get_window_shortname(window))
+        if DEBUG is True:
+            print("Found window: %s", self.get_window_shortname(window))
         self.managed_windows.append(window)
         self.exposed_windows.append(window)
 
@@ -120,14 +123,16 @@ class Session:
 
     def unmanage_window(self, window):
         if self.is_managed_window(window):
-            print("Unmanaging window: %s", self.get_window_shortname(window))
+            if DEBUG is True:
+                print("Unmanaging window: %s", self.get_window_shortname(window))
             if window in self.managed_windows:
                 self.managed_windows.remove(window)
             if window in self.exposed_windows:
                 self.exposed_windows.remove(window)
 
     def destroy_window(self, window):
-        print("Destroy window: %s", self.get_window_shortname(window))
+        if DEBUG is True:
+            print("Destroy window: %s", self.get_window_shortname(window))
         if self.is_managed_window(window):
             window.destroy()
             self.unmanage_window(window)
@@ -170,6 +175,8 @@ class Session:
             else:
                 return geom.x * 10000 + geom.y
 
+        if DEBUG is True:
+            print("Focus next window action triggered...")
         windows = sorted(self.exposed_windows, key=_sort_key)
         try:
             i = windows.index(window)
@@ -179,9 +186,10 @@ class Session:
                 next_window = windows[0]
             else:
                 return
-        next_window.raise_window()
-        next_window.warp_pointer(PNT_OFFSET, PNT_OFFSET)
-        self.focus_window(next_window)
+        self.raise_window(next_window)
+        # next_window.raise_window()
+        # next_window.warp_pointer(PNT_OFFSET, PNT_OFFSET)
+        # self.focus_window(next_window)
 
     ### WINDOW DECORATION
 
@@ -257,9 +265,10 @@ class Session:
         self.raise_window(self.deskbar)
         self.deskbar.fill_rectangle(self.deskbar_gc, 5, 5, 10, 10)
         self.deskbar.draw_text(self.deskbar_gc, 20, 15, self.session_info.session_name)
-        self.deskbar.draw_text(self.deskbar_gc, 120, 15, self.session_info.kernel_version)
+        self.deskbar.draw_text(self.deskbar_gc, 80, 15, self.session_info.kernel_version)
 
     # DEBUG
+
     def print_event_type(self, ev):
         event = ev.type
         msg = "Unknown"
@@ -285,10 +294,18 @@ class Session:
             msg = "ButtonPress"
         print(msg + " event")
 
+    # SPECIAL
+
+    def start_terminal(self):
+        subprocess.Popen('xterm')
+
+    # EVENT HANDLING
+
     def loop(self):
         while 1:
             ev = self.dpy.next_event()
-            self.print_event_type(ev)
+            if DEBUG is True:
+                self.print_event_type(ev)
 
             if ev.type == X.CreateNotify:
                 try:
@@ -298,7 +315,7 @@ class Session:
                     pass
             elif ev.type == X.DestroyNotify:
                 try:
-                    self.unmanage_window(ev.window)
+                    self.destroy_window(ev.window)
                 except AttributeError:
                     print("Unable to unhandle new window")
                     pass
@@ -306,8 +323,8 @@ class Session:
                 self.raise_window(ev.window)
             elif ev.type == X.LeaveNotify:
                 self.set_unfocus_window_border(ev.window)
-            elif ev.type == X.KeyPress and ev.child != X.NONE:
-                self.raise_window(ev.child)
+            elif ev.type == X.KeyPress:
+                self.start_terminal()
             elif ev.type == X.ButtonPress and ev.child != X.NONE:
                 self.raise_window(ev.child)
                 self.attr = ev.child.get_geometry()
@@ -332,7 +349,7 @@ class Session:
     def main(self):
         # Register keyboard and mouse events
         self.dpy_root.grab_key(
-            self.dpy.keysym_to_keycode(XK.string_to_keysym("F1")),
+            self.dpy.keysym_to_keycode(XK.string_to_keysym("Space")),
             X.Mod1Mask | X.Mod2Mask,
             1,
             X.GrabModeAsync,

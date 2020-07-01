@@ -20,13 +20,13 @@ sudo sh uninstall.sh
 ## User guide
 At the moment, BiscuitWM follows the hybrid keyboard and mouse driven interaction from TinyWM. Future iterations will seek to add titlebars to allow for mouse-first interactivity.
 
-Note that whichever window your cursor is hovering over will be the active window. Future iterations will require the window to be raised by clicking on the window.
+Note that whichever window your cursor is hovering over will be the window with input focus (and will also be raised). Future iterations will require the window to be raised by clicking on the window.
 
 ### Keyboard shortcuts
 - `Alt + Left Click`: Move window
 - `Alt + Left Click` and drag: Raise window
 - `Alt + Right Click` and drag: Resize window
-- `Alt + F1`: Raise currently focused window
+- `Alt + Space`: Launch a new terminal window
 
 ## Emulation guide
 Instead of constantly logging off, switching the Xsession, then logging in again to test, it will be easier to just run an embedded Xsession within your current session. To do this, install the Xephyr package (`xserver-xephyr`).
