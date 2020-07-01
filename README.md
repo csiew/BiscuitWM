@@ -1,4 +1,6 @@
 # BiscuitWM
+![alt text](https://csiew.github.io/images/BiscuitWM.png "BiscuitWM desktop")
+
 **BiscuitWM** is an X11 window manager based on the Python version of [TinyWM](https://github.com/mackstann/tinywm) by [Nick Welch](https://github.com/mackstann) and the [xpywm](https://pypi.org/project/xpywm/) window manager by [Hiroyuki Ohsaki](http://www.lsnl.jp/~ohsaki/). The intent of this window manager project is largely to expand my understanding of the X11 libraries via Python.
 
 Development and testing is being done in a Debian 10.4.0 virtual machine.
