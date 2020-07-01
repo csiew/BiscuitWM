@@ -25,8 +25,7 @@ At the moment, BiscuitWM follows the hybrid keyboard and mouse driven interactio
 Note that whichever window your cursor is hovering over will be the window with input focus (and will also be raised). Future iterations will require the window to be raised by clicking on the window.
 
 ### Keyboard shortcuts
-- `Alt + Left Click`: Move window
-- `Alt + Left Click` and drag: Raise window
+- `Alt + Left Click` and drag: Move window
 - `Alt + Right Click` and drag: Resize window
 - `Alt + Space`: Launch a new terminal window
 
