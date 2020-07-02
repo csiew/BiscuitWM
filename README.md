@@ -29,7 +29,8 @@ Note that whichever window your cursor is hovering over will be the window with 
 ### Keyboard shortcuts
 - `Alt + Left Click` and drag: Move window
 - `Alt + Right Click` and drag: Resize window
-- `Alt + Space`: Launch a new terminal window
+- `Alt + X`: Launch a new terminal window
+- `Alt + Q`: Close the currently-focused window
 
 ## Emulation guide
 Instead of constantly logging off, switching the Xsession, then logging in again to test, it will be easier to just run an embedded Xsession within your current session. To do this, install the Xephyr package (`xserver-xephyr`).
