@@ -6,13 +6,19 @@ import subprocess
 from Xlib.display import Display
 from Xlib import X, XK, Xatom, Xcursorfont, error
 
+## CONSTANTS
 
 PNT_OFFSET = 16
+
+## PREFERENCES
 
 DEBUG = True
 AUTO_WINDOW_PLACE = True
 AUTO_WINDOW_FIT = True
 DRAW_DESKBAR = True
+WINDOW_BORDER_WIDTH = 2
+ACTIVE_WINDOW_BORDER_COLOR = "#ff0000"
+INACTIVE_WINDOW_BORDER_COLOR = "#000000"
 
 
 class SessionInfo:
@@ -203,14 +209,15 @@ class Session:
                 self.set_unfocus_window_border(window)
 
     def set_unfocus_window_border(self, window):
-        border_color = self.colormap.alloc_named_color("#000000").pixel
-        window.configure(border_width=1)
-        window.change_attributes(None, border_pixel=border_color)
+        if not self.is_dock(window):
+            border_color = self.colormap.alloc_named_color(INACTIVE_WINDOW_BORDER_COLOR).pixel
+            window.configure(border_width=WINDOW_BORDER_WIDTH)
+            window.change_attributes(None, border_pixel=border_color)
 
     def set_focus_window_border(self, window):
         if not self.is_dock(window):
-            border_color = self.colormap.alloc_named_color("#ff0000").pixel
-            window.configure(border_width=1)
+            border_color = self.colormap.alloc_named_color(ACTIVE_WINDOW_BORDER_COLOR).pixel
+            window.configure(border_width=WINDOW_BORDER_WIDTH)
             window.change_attributes(None, border_pixel=border_color)
 
     def set_cursor(self, window):
