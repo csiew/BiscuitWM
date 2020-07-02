@@ -4,7 +4,7 @@ import os
 import sys
 import subprocess
 from Xlib.display import Display
-from Xlib import X, XK, Xatom, Xcursorfont
+from Xlib import X, XK, Xatom, Xcursorfont, error
 
 
 PNT_OFFSET = 16
@@ -33,7 +33,7 @@ class Session:
         self.exposed_windows = []
         self.last_raised_window = None
 
-        self.key_handlers = {}
+        self.key_alias = {}
 
         self.start = None
         self.attr = None
@@ -63,7 +63,12 @@ class Session:
         return window in windows
 
     def is_dock(self, window):
-        result = window.get_full_property(self.wm_window_type, Xatom.ATOM)
+        result = None
+        try:
+            result = window.get_full_property(self.wm_window_type, Xatom.ATOM)
+        except error.BadWindow:
+            print("Failed to detect if window is dock")
+            pass
         if result is not None and result.value[0] == self.wm_window_type_dock:
             return True
         return False
@@ -322,7 +327,14 @@ class Session:
             elif ev.type == X.LeaveNotify:
                 self.set_unfocus_window_border(ev.window)
             elif ev.type == X.KeyPress:
-                self.start_terminal()
+                if ev.detail in self.key_alias.values():
+                    print("Key is aliased")
+                    if ev.detail == self.key_alias["x"]:
+                        self.start_terminal()
+                    elif ev.detail == self.key_alias["q"] and ev.child != X.NONE:
+                        self.destroy_window(ev.child)
+                else:
+                    print("Key is not aliased")
             elif ev.type == X.ButtonPress and ev.child != X.NONE:
                 self.raise_window(ev.child)
                 self.attr = ev.child.get_geometry()
@@ -344,11 +356,16 @@ class Session:
             if DRAW_DESKBAR is True:
                 self.draw_deskbar_content()
             self.dpy.sync()
+
+    def set_key_aliases(self):
+        self.key_alias["x"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("x"))
+        self.key_alias["q"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("q"))
     
     def main(self):
         # Register keyboard and mouse events
+        self.set_key_aliases()
         self.dpy_root.grab_key(
-            self.dpy.keysym_to_keycode(XK.string_to_keysym("Space")),
+            X.AnyKey,
             X.Mod1Mask,
             1,
             X.GrabModeAsync,
