@@ -1,5 +1,5 @@
 # ![alt text](docs/images/logo-inline-32.png "BiscuitWM logo") BiscuitWM
-![alt text](docs/images/screenshot.png "BiscuitWM desktop")
+![alt text](docs/images/screenshot2.png "BiscuitWM desktop")
 
 **BiscuitWM** is an X11 window manager based on the Python version of [TinyWM](https://github.com/mackstann/tinywm) by [Nick Welch](https://github.com/mackstann) and the [xpywm](https://github.com/h-ohsaki/xpywm) window manager by [Hiroyuki Ohsaki](http://www.lsnl.jp/~ohsaki/). The intent of this window manager project is largely to expand my understanding of the X11 libraries via Python.
 
