@@ -7,13 +7,17 @@
 	<meta content="biscuitwm, tinywm, xpym, window manager, linux, x11" name="keywords">
 	<link rel="shortcut icon" href="images/logo-inline-32.png">
 	<style>
+		@import url('https://fonts.googleapis.com/css2?family=Balsamiq+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Inconsolata&display=swap');
+
 		html, body {
 			max-width: 800px;
 			margin: auto;
 			padding: 16px;
 			box-sizing: border-box;
-			font-family: serif;
-			line-height: 1.2;
+			background: beige;
+			font-size: 20px;
+			font-family: 'Balsamiq Sans', Helvetica, Arial, sans-serif;
+			line-height: 1.5;
 		}
 		header, footer {
 			margin: auto;
@@ -32,6 +36,20 @@
 			margin-top: 24px;
 			margin-bottom: 32px;
 			color: dimgray;
+			font-size: 14px;
+		}
+		a {
+			color: sienna;
+		}
+		hr {
+			border: none;
+			border-bottom: 1px solid sienna;
+		}
+		.quote {
+			padding: 16px;
+			background: palegoldenrod;
+			border-left: 8px solid sienna;
+			border-radius: 5px;
 		}
 		.copyrights {
 			list-style: none;
@@ -41,9 +59,8 @@
 		.codeblock {
 			display: inline;
 			padding: 4px;
-			font-family: monospace;
-			font-weight: bold;
-			background: beige;
+			font-family: Incosolata, monospace;
+			background: palegoldenrod;
 			border-radius: 5px;
 		}
 		.codeblock-big {
@@ -56,7 +73,8 @@
 		}
 		.img-bordered {
 			box-sizing: border-box;
-			border: 1px solid black;
+			border: 1px solid sienna;
+			border-radius: 5px;
 		}
 	</style>
 	<title>BiscuitWM</title>
@@ -65,7 +83,7 @@
 	<header>
 		<img src="./images/logo-inline.png" height="64px" />
 		<h1>BiscuitWM</h1>
-		<small><i>Weirdly delectable</i></small>
+		<small>Weirdly delectable</small>
 	</header>
 
 	<hr>
@@ -75,7 +93,7 @@
 	<p>
 		The intent of this window manager project is largely to expand my understanding of the X11 libraries via Python. However, it should be good for some basic use cases such as lightweight virtual machines or a Raspberry Pi.
 	</p>
-	<p>
+	<p class="quote">
 		<b style="color: red;">WARNING:</b> This project is still in alpha. It is not recommended to run BiscuitWM on a production machine without using Xephyr to run an embedded X session!
 	</p>
 	<a href="./images/screenshot2.png"><img class="img-bordered" src="./images/screenshot2.png" width="100%"></a>
