@@ -347,8 +347,8 @@ class Session:
             if ev.type == X.CreateNotify:
                 try:
                     self.manage_window(ev.window)
-                    if not self.is_popup_window(ev.window):
-                        self.raise_window(ev.window)
+                    self.focus_window(ev.window)
+                    self.raise_window(ev.window)
                 except AttributeError:
                     print("Unable to handle new window")
                     pass
