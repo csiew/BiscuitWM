@@ -63,26 +63,29 @@ class Session:
         self.attr = None
 
         self.wm_window_type = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE')
-        self.wm_window_type_dock = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_DOCK')
-        self.wm_window_type_normal = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_NORMAL')
-        self.wm_window_type_dialog = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_DIALOG')
-        self.wm_window_type_utility = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_UTILITY')
-        self.wm_window_type_toolbar = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_TOOLBAR')
-        self.wm_window_type_menu = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_MENU')
-        self.wm_window_type_splash = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_SPLASH')
-        self.wm_window_type_active = self.dpy.intern_atom('_NET_ACTIVE_WINDOW')
-        self.wm_window_state_always_above = self.dpy.intern_atom('_NET_WM_STATE_ABOVE')
+        self.wm_window_types = {
+            "dock": self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_DOCK'),
+            "normal": self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_NORMAL'),
+            "dialog": self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_DIALOG'),
+            "utility": self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_UTILITY'),
+            "toolbar": self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_TOOLBAR'),
+            "menu": self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_MENU'),
+            "splash": self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_SPLASH')
+        }
+        self.wm_window_status = {
+            "active": self.dpy.intern_atom('_NET_ACTIVE_WINDOW'),
+            "above": self.dpy.intern_atom('_NET_WM_STATE_ABOVE')
+        }
 
         self.wm_window_cyclical = [
-            self.wm_window_type_normal,
-            self.wm_window_type_dialog,
-            self.wm_window_type_utility,
-            self.wm_window_type_toolbar,
-            self.wm_window_type_menu,
-            self.wm_window_type_splash
+            self.wm_window_types["normal"],
+            self.wm_window_types["dialog"],
+            self.wm_window_types["utility"],
+            self.wm_window_types["toolbar"],
+            self.wm_window_types["menu"],
+            self.wm_window_types["splash"]
         ]
 
-        self.rounded_corners = None
         self.deskbar = None
         self.deskbar_gc = None
 
@@ -110,7 +113,7 @@ class Session:
         except error.BadWindow:
             print("Failed to detect if window is dock")
             pass
-        if result is not None and result.value[0] == self.wm_window_type_dock:
+        if result is not None and result.value[0] == self.wm_window_types["dock"]:
             return True
         return False
 
@@ -121,7 +124,7 @@ class Session:
         except error.BadWindow:
             print("Failed to detect if window is dock")
             pass
-        if result is not None and (result.value[0] == self.wm_window_type_menu or result.value[0] == self.wm_window_type_splash):
+        if result is not None and (result.value[0] == self.wm_window_types["menu"] or result.value[0] == self.wm_window_types["splash"]):
             return True
         return False
 
@@ -137,14 +140,14 @@ class Session:
         return False
 
     def is_active(self, atom):
-        if atom == self.wm_window_type_active:
+        if atom == self.wm_window_status["active"]:
             return True
         return False
 
     def get_active_window(self):
         window = None
         try:
-            window = self.dpy_root.get_full_property(self.wm_window_type_active, Xatom.ATOM)
+            window = self.dpy_root.get_full_property(self.wm_window_status["active"], Xatom.ATOM)
         except:
             print("Failed to get active window")
             pass
@@ -322,7 +325,7 @@ class Session:
             background_pixel=self.screen.white_pixel,
             event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
         )
-        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_type_dock], X.PropModeReplace)
+        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
         self.deskbar_gc = self.deskbar.create_gc(
             foreground=self.screen.black_pixel,
             background=self.screen.white_pixel,
