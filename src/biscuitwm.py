@@ -78,6 +78,15 @@ class Session:
             return True
         return False
 
+    def get_active_window(self):
+        window = None
+        try:
+            window = self.dpy_root.get_full_property(self.wm_window_type_active, Xatom.ATOM)
+        except:
+            print("Failed to get active window")
+            pass
+        return window
+
     def get_window_class(self, window):
         try:
             cmd, cls = window.get_wm_class()
@@ -102,6 +111,12 @@ class Session:
 
     def get_window_shortname(self, window):
         return '0x{:x} [{}]'.format(window.id, self.get_window_class(window))
+
+    def get_window_title(self, window):
+        try:
+            return window.get_wm_icon_name()
+        except:
+            return "BiscuitWM"
 
     ### WINDOW CONTROLS
 
@@ -143,24 +158,12 @@ class Session:
             self.unmanage_window(window)
 
     def raise_window(self, window):
-        if not self.is_managed_window(window):
-            return
-        window.configure(stack_mode=X.Above)
-        self.last_raised_window = window
-        self.set_focus_window_border(window)
-
-    def lower_window(self, window):
-        if not self.is_managed_window(window):
-            return
-        window.configure(stack_mode=X.Below)
-        if self.last_raised_window == window:
-            self.last_raised_window = None
-
-    def raise_or_lower_window(self, window):
-        if self.last_raised_window == window:
-            self.lower_window(window)
-        else:
-            self.raise_window(window)
+        if not self.is_dock(window):
+            if not self.is_managed_window(window):
+                return
+            window.configure(stack_mode=X.Above)
+            self.last_raised_window = window
+            self.set_focus_window_border(window)
 
     def focus_window(self, window):
         if not self.is_managed_window(window):
@@ -171,30 +174,6 @@ class Session:
 
         window.set_input_focus(X.RevertToParent, 0)
         self.set_focus_window_border(window)
-
-    def focus_next_window(self, window=None):
-        def _sort_key(window):
-            geom = self.get_window_geometry(window)
-            if geom is None:
-                return 1000000000
-            else:
-                return geom.x * 10000 + geom.y
-
-        if DEBUG is True:
-            print("Focus next window action triggered...")
-        windows = sorted(self.exposed_windows, key=_sort_key)
-        try:
-            i = windows.index(window)
-            next_window = windows[(i+1) & len(windows)]
-        except ValueError:
-            if windows:
-                next_window = windows[0]
-            else:
-                return
-        self.raise_window(next_window)
-        # next_window.raise_window()
-        # next_window.warp_pointer(PNT_OFFSET, PNT_OFFSET)
-        # self.focus_window(next_window)
 
     ### WINDOW DECORATION
 
@@ -265,10 +244,19 @@ class Session:
         print(self.wm_window_type_dock)
 
     def draw_deskbar_content(self):
-        self.raise_window(self.deskbar)
+        self.deskbar.raise_window()
+        self.deskbar.clear_area()
+        '''
         self.deskbar.fill_rectangle(self.deskbar_gc, 5, 5, 10, 10)
         self.deskbar.draw_text(self.deskbar_gc, 20, 15, self.session_info.session_name)
         self.deskbar.draw_text(self.deskbar_gc, 80, 15, self.session_info.kernel_version)
+        '''
+        if self.last_raised_window is None:
+            self.deskbar.draw_text(self.deskbar_gc, 5, 15, self.session_info.session_name)
+        else:
+            active_window_title = self.get_window_title(self.last_raised_window)
+            print("Active window: %s", active_window_title)
+            self.deskbar.draw_text(self.deskbar_gc, 5, 15, active_window_title.encode('utf-8'))
 
     # DEBUG
 
@@ -281,6 +269,8 @@ class Session:
             msg = "DestroyNotify"
         elif event == X.MapNotify:
             msg = "MapNotify"
+        elif event == X.Expose:
+            msg = "Expose"
         elif event == X.FocusIn:
             msg = "FocusIn"
         elif event == X.FocusOut:
@@ -356,8 +346,7 @@ class Session:
                 self.start = None
                 self.attr = None
 
-            if DRAW_DESKBAR is True:
-                self.draw_deskbar_content()
+            self.draw_deskbar_content()
             self.dpy.sync()
 
     def set_key_aliases(self):
@@ -399,6 +388,7 @@ class Session:
         # Draw deskbar
         if DRAW_DESKBAR is True:
             self.draw_deskbar()
+            self.draw_deskbar_content()
 
         children = self.window_list()
         for child in children:
