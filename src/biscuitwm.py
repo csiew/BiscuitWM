@@ -190,8 +190,15 @@ class Session:
             return "BiscuitWM"
         return result
 
+    def get_string_physical_width(self, text):
+        font = self.dpy.open_font('9x15')
+        result = font.query_text_extents(text.encode())
+        return result.overall_width
+
     def get_current_time(self):
-        return os.popen('date +"%I:%M %P"').read()[:-1]
+        timestamp = os.popen('date +"%I:%M %P"').read()[:-1]
+        width = self.get_string_physical_width(timestamp)
+        return [timestamp, width]
 
     ### WINDOW CONTROLS
 
@@ -356,13 +363,18 @@ class Session:
     def update_deskbar(self):
         self.deskbar.raise_window()
         self.deskbar.clear_area()
-        self.deskbar.draw_text(self.deskbar_gc, self.display_dimensions.width - 55, 15, self.get_current_time().encode('utf-8'))
+        timestamp, timestamp_width = self.get_current_time()
+        self.deskbar.draw_text(
+            self.deskbar_gc,
+            self.display_dimensions.width - (timestamp_width - 15),
+            15,
+            timestamp.encode('utf-8'))
         if self.last_raised_window is None:
-            self.deskbar.draw_text(self.deskbar_gc, 5, 15, self.session_info.session_name)
+            self.deskbar.draw_text(self.deskbar_gc, 10, 15, self.session_info.session_name)
         else:
             active_window_title = self.get_window_title(self.last_raised_window)
             print("Active window: %s", active_window_title)
-            self.deskbar.draw_text(self.deskbar_gc, 5, 15, active_window_title.encode('utf-8'))
+            self.deskbar.draw_text(self.deskbar_gc, 10, 15, active_window_title.encode('utf-8'))
 
     # DEBUG
 
