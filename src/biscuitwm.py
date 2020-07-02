@@ -4,7 +4,8 @@ import os
 import sys
 import subprocess
 from Xlib.display import Display
-from Xlib import X, XK, Xatom, Xcursorfont, error
+from Xlib import X, XK, Xatom, Xcursorfont, display, protocol, error
+from Xlib.ext import shape
 
 ## CONSTANTS
 
@@ -46,11 +47,15 @@ class Session:
         self.dpy = Display()
         self.screen = self.dpy.screen()
         self.dpy_root = self.screen.root
+        self.dpy_protocol = display.Display()
         self.colormap = self.screen.default_colormap
+
+        self.display_dimensions = self.get_display_geometry()
 
         self.managed_windows = []
         self.exposed_windows = []
         self.last_raised_window = None
+        self.window_order = -1
 
         self.key_alias = {}
 
@@ -59,10 +64,25 @@ class Session:
 
         self.wm_window_type = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE')
         self.wm_window_type_dock = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_DOCK')
+        self.wm_window_type_normal = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_NORMAL')
+        self.wm_window_type_dialog = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_DIALOG')
+        self.wm_window_type_utility = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_UTILITY')
+        self.wm_window_type_toolbar = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_TOOLBAR')
         self.wm_window_type_menu = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_MENU')
         self.wm_window_type_splash = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_SPLASH')
         self.wm_window_type_active = self.dpy.intern_atom('_NET_ACTIVE_WINDOW')
+        self.wm_window_state_always_above = self.dpy.intern_atom('_NET_WM_STATE_ABOVE')
 
+        self.wm_window_cyclical = [
+            self.wm_window_type_normal,
+            self.wm_window_type_dialog,
+            self.wm_window_type_utility,
+            self.wm_window_type_toolbar,
+            self.wm_window_type_menu,
+            self.wm_window_type_splash
+        ]
+
+        self.rounded_corners = None
         self.deskbar = None
         self.deskbar_gc = None
 
@@ -102,6 +122,17 @@ class Session:
             print("Failed to detect if window is dock")
             pass
         if result is not None and (result.value[0] == self.wm_window_type_menu or result.value[0] == self.wm_window_type_splash):
+            return True
+        return False
+
+    def is_cyclical_window(self, window):
+        result = None
+        try:
+            result = window.get_full_property(self.wm_window_type, Xatom.ATOM)
+        except error.BadWindow:
+            print("Failed to detect if window is dock")
+            pass
+        if result is not None and result.value[0] in self.wm_window_cyclical:
             return True
         return False
 
@@ -145,10 +176,17 @@ class Session:
         return '0x{:x} [{}]'.format(window.id, self.get_window_class(window))
 
     def get_window_title(self, window):
+        result = None
         try:
-            return window.get_wm_icon_name()
+            result = window.get_wm_icon_name()
         except:
+            pass
+        if result is None:
             return "BiscuitWM"
+        return result
+
+    def get_current_time(self):
+        return os.popen('date +"%I:%M %P"').read()[:-1]
 
     ### WINDOW CONTROLS
 
@@ -166,6 +204,7 @@ class Session:
             print("Found window: %s", self.get_window_shortname(window))
         self.managed_windows.append(window)
         self.exposed_windows.append(window)
+        self.window_order = len(self.managed_windows)-1
 
         window.map()
         mask = X.EnterWindowMask | X.LeaveWindowMask
@@ -179,6 +218,7 @@ class Session:
                 print("Unmanaging window: %s", self.get_window_shortname(window))
             if window in self.managed_windows:
                 self.managed_windows.remove(window)
+                self.window_order = len(self.managed_windows)-1
             if window in self.exposed_windows:
                 self.exposed_windows.remove(window)
 
@@ -205,6 +245,23 @@ class Session:
 
         window.set_input_focus(X.RevertToParent, 0)
         self.set_focus_window_border(window)
+
+    def cycle_windows(self):
+        if len(self.managed_windows) > 0:
+            self.window_order += 1
+            if self.window_order > len(self.managed_windows)-1:
+                self.window_order = 0
+            window = self.managed_windows[self.window_order]
+            if self.is_cyclical_window(window) is False:
+                if self.window_order >= len(self.managed_windows)-1:
+                    self.window_order = 0
+                else:
+                    self.window_order += 1
+                window = self.managed_windows[self.window_order]
+            self.focus_window(window)
+            self.raise_window(window)
+        else:
+            self.window_order = -1
 
     ### WINDOW DECORATION
 
@@ -265,24 +322,18 @@ class Session:
             background_pixel=self.screen.white_pixel,
             event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
         )
-        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_type_dock, ], X.PropModeReplace)
+        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_type_dock], X.PropModeReplace)
         self.deskbar_gc = self.deskbar.create_gc(
             foreground=self.screen.black_pixel,
             background=self.screen.white_pixel,
         )
         self.deskbar.map()
-        self.draw_deskbar_content()
-        print(self.deskbar.get_full_property(self.wm_window_type, Xatom.ATOM).value[0])
-        print(self.wm_window_type_dock)
+        self.update_deskbar()
 
-    def draw_deskbar_content(self):
+    def update_deskbar(self):
         self.deskbar.raise_window()
         self.deskbar.clear_area()
-        '''
-        self.deskbar.fill_rectangle(self.deskbar_gc, 5, 5, 10, 10)
-        self.deskbar.draw_text(self.deskbar_gc, 20, 15, self.session_info.session_name)
-        self.deskbar.draw_text(self.deskbar_gc, 80, 15, self.session_info.kernel_version)
-        '''
+        self.deskbar.draw_text(self.deskbar_gc, self.display_dimensions.width - 55, 15, self.get_current_time().encode('utf-8'))
         if self.last_raised_window is None:
             self.deskbar.draw_text(self.deskbar_gc, 5, 15, self.session_info.session_name)
         else:
@@ -326,6 +377,12 @@ class Session:
 
     # EVENT HANDLING
 
+    def set_key_aliases(self):
+        self.key_alias["x"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("x"))
+        self.key_alias["q"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("q"))
+        self.key_alias["F1"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("F1"))
+        self.key_alias["Tab"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("Tab"))
+
     def handle_keypress(self, ev):
         if ev.detail in self.key_alias.values():
             print("Key is aliased")
@@ -335,6 +392,8 @@ class Session:
                 self.destroy_window(ev.child)
             elif ev.detail == self.key_alias["F1"] and ev.child != X.NONE:
                 self.raise_window(ev.window)
+            elif ev.detail == self.key_alias["Tab"] and ev.child != X.NONE:
+                self.cycle_windows()
         else:
             print("Key is not aliased")
 
@@ -384,13 +443,8 @@ class Session:
                 self.start = None
                 self.attr = None
 
-            self.draw_deskbar_content()
-            self.dpy.sync()
-
-    def set_key_aliases(self):
-        self.key_alias["x"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("x"))
-        self.key_alias["q"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("q"))
-        self.key_alias["F1"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("F1"))
+            self.update_deskbar()
+            self.dpy.flush()
     
     def main(self):
         # Register keyboard and mouse events
@@ -424,15 +478,15 @@ class Session:
         )
         self.dpy_root.change_attributes(event_mask=X.SubstructureNotifyMask)
 
-        # Draw deskbar
-        if self.prefs.DRAW_DESKBAR is True:
-            self.draw_deskbar()
-            self.draw_deskbar_content()
-
         children = self.window_list()
         for child in children:
             if child.get_attributes().map_state:
                 self.manage_window(child)
+
+        # Draw deskbar
+        if self.prefs.DRAW_DESKBAR is True:
+            self.draw_deskbar()
+            self.update_deskbar()
 
         # Event loop
         try:
