@@ -10,16 +10,6 @@ from Xlib import X, XK, Xatom, Xcursorfont, error
 
 PNT_OFFSET = 16
 
-## PREFERENCES
-
-DEBUG = True
-AUTO_WINDOW_PLACE = True
-AUTO_WINDOW_FIT = True
-DRAW_DESKBAR = True
-WINDOW_BORDER_WIDTH = 2
-ACTIVE_WINDOW_BORDER_COLOR = "#ff0000"
-INACTIVE_WINDOW_BORDER_COLOR = "#000000"
-
 
 class SessionInfo:
     def __init__(self):
@@ -27,8 +17,31 @@ class SessionInfo:
         self.kernel_version = os.popen('uname -rm').read()[:-1].encode('utf-8')
 
 
+class Preferences:
+    def __init__(
+            self,
+            DEBUG=True,
+            AUTO_WINDOW_PLACE=True,
+            AUTO_WINDOW_FIT=True,
+            AUTO_WINDOW_RAISE=True,
+            DRAW_DESKBAR=True,
+            WINDOW_BORDER_WIDTH=2,
+            ACTIVE_WINDOW_BORDER_COLOR="#ff0000",
+            INACTIVE_WINDOW_BORDER_COLOR="#000000"
+        ):
+        self.DEBUG = DEBUG
+        self.AUTO_WINDOW_PLACE = AUTO_WINDOW_PLACE
+        self.AUTO_WINDOW_FIT = AUTO_WINDOW_FIT
+        self.AUTO_WINDOW_RAISE = AUTO_WINDOW_RAISE
+        self.DRAW_DESKBAR = DRAW_DESKBAR
+        self.WINDOW_BORDER_WIDTH = WINDOW_BORDER_WIDTH
+        self.ACTIVE_WINDOW_BORDER_COLOR = ACTIVE_WINDOW_BORDER_COLOR
+        self.INACTIVE_WINDOW_BORDER_COLOR = INACTIVE_WINDOW_BORDER_COLOR
+
+
 class Session:
-    def __init__(self, session_info):
+    def __init__(self, prefs, session_info):
+        self.prefs = prefs
         self.session_info = session_info
         self.dpy = Display()
         self.screen = self.dpy.screen()
@@ -46,6 +59,8 @@ class Session:
 
         self.wm_window_type = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE')
         self.wm_window_type_dock = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_DOCK')
+        self.wm_window_type_menu = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_MENU')
+        self.wm_window_type_splash = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_SPLASH')
         self.wm_window_type_active = self.dpy.intern_atom('_NET_ACTIVE_WINDOW')
 
         self.deskbar = None
@@ -76,6 +91,17 @@ class Session:
             print("Failed to detect if window is dock")
             pass
         if result is not None and result.value[0] == self.wm_window_type_dock:
+            return True
+        return False
+
+    def is_popup_window(self, window):
+        result = None
+        try:
+            result = window.get_full_property(self.wm_window_type, Xatom.ATOM)
+        except error.BadWindow:
+            print("Failed to detect if window is dock")
+            pass
+        if result is not None and (result.value[0] == self.wm_window_type_menu or result.value[0] == self.wm_window_type_splash):
             return True
         return False
 
@@ -136,7 +162,7 @@ class Session:
         if self.is_managed_window(window):
             return
 
-        if DEBUG is True:
+        if self.prefs.DEBUG is True:
             print("Found window: %s", self.get_window_shortname(window))
         self.managed_windows.append(window)
         self.exposed_windows.append(window)
@@ -149,7 +175,7 @@ class Session:
 
     def unmanage_window(self, window):
         if self.is_managed_window(window):
-            if DEBUG is True:
+            if self.prefs.DEBUG is True:
                 print("Unmanaging window: %s", self.get_window_shortname(window))
             if window in self.managed_windows:
                 self.managed_windows.remove(window)
@@ -157,7 +183,7 @@ class Session:
                 self.exposed_windows.remove(window)
 
     def destroy_window(self, window):
-        if DEBUG is True:
+        if self.prefs.DEBUG is True:
             print("Destroy window: %s", self.get_window_shortname(window))
         if self.is_managed_window(window):
             window.destroy()
@@ -169,7 +195,6 @@ class Session:
                 return
             window.configure(stack_mode=X.Above)
             self.last_raised_window = window
-            self.set_focus_window_border(window)
 
     def focus_window(self, window):
         if not self.is_managed_window(window):
@@ -192,9 +217,9 @@ class Session:
         window_height = window_dimensions.height
         display_dimensions = self.get_display_geometry()
         if self.is_dock(window) is False:
-            if AUTO_WINDOW_PLACE is True:
+            if self.prefs.AUTO_WINDOW_PLACE is True:
                 # Move new window out of the way of the deskbar
-                if AUTO_WINDOW_FIT is True:
+                if self.prefs.AUTO_WINDOW_FIT is True:
                     # Resize window to fit the screen
                     if window_dimensions.width+window_x >= display_dimensions.width:
                         window_width -= window_x*2
@@ -210,14 +235,14 @@ class Session:
 
     def set_unfocus_window_border(self, window):
         if not self.is_dock(window):
-            border_color = self.colormap.alloc_named_color(INACTIVE_WINDOW_BORDER_COLOR).pixel
-            window.configure(border_width=WINDOW_BORDER_WIDTH)
+            border_color = self.colormap.alloc_named_color(self.prefs.INACTIVE_WINDOW_BORDER_COLOR).pixel
+            window.configure(border_width=self.prefs.WINDOW_BORDER_WIDTH)
             window.change_attributes(None, border_pixel=border_color)
 
     def set_focus_window_border(self, window):
         if not self.is_dock(window):
-            border_color = self.colormap.alloc_named_color(ACTIVE_WINDOW_BORDER_COLOR).pixel
-            window.configure(border_width=WINDOW_BORDER_WIDTH)
+            border_color = self.colormap.alloc_named_color(self.prefs.ACTIVE_WINDOW_BORDER_COLOR).pixel
+            window.configure(border_width=self.prefs.WINDOW_BORDER_WIDTH)
             window.change_attributes(None, border_pixel=border_color)
 
     def set_cursor(self, window):
@@ -308,18 +333,22 @@ class Session:
                 self.start_terminal()
             elif ev.detail == self.key_alias["q"] and ev.child != X.NONE:
                 self.destroy_window(ev.child)
+            elif ev.detail == self.key_alias["F1"] and ev.child != X.NONE:
+                self.raise_window(ev.window)
         else:
             print("Key is not aliased")
 
     def loop(self):
         while 1:
             ev = self.dpy.next_event()
-            if DEBUG is True:
+            if self.prefs.DEBUG is True:
                 self.print_event_type(ev)
 
             if ev.type == X.CreateNotify:
                 try:
                     self.manage_window(ev.window)
+                    if not self.is_popup_window(ev.window):
+                        self.raise_window(ev.window)
                 except AttributeError:
                     print("Unable to handle new window")
                     pass
@@ -330,7 +359,9 @@ class Session:
                     print("Unable to unhandle new window")
                     pass
             elif ev.type == X.EnterNotify:
-                self.raise_window(ev.window)
+                self.focus_window(ev.window)
+                if self.prefs.AUTO_WINDOW_RAISE is True:
+                    self.raise_window(ev.window)
             elif ev.type == X.LeaveNotify:
                 self.set_unfocus_window_border(ev.window)
             elif ev.type == X.KeyPress:
@@ -359,6 +390,7 @@ class Session:
     def set_key_aliases(self):
         self.key_alias["x"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("x"))
         self.key_alias["q"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("q"))
+        self.key_alias["F1"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("F1"))
     
     def main(self):
         # Register keyboard and mouse events
@@ -393,7 +425,7 @@ class Session:
         self.dpy_root.change_attributes(event_mask=X.SubstructureNotifyMask)
 
         # Draw deskbar
-        if DRAW_DESKBAR is True:
+        if self.prefs.DRAW_DESKBAR is True:
             self.draw_deskbar()
             self.draw_deskbar_content()
 
@@ -411,6 +443,7 @@ class Session:
 
 if __name__ == "__main__":
     session_info = SessionInfo()
-    session = Session(session_info=session_info)
+    prefs = Preferences()
+    session = Session(prefs=prefs, session_info=session_info)
     session.main()
 
