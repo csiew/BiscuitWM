@@ -300,9 +300,19 @@ class Session:
     # SPECIAL
 
     def start_terminal(self):
-        subprocess.Popen('xterm')
+        subprocess.Popen('x-terminal-emulator')
 
     # EVENT HANDLING
+
+    def handle_keypress(self, ev):
+        if ev.detail in self.key_alias.values():
+            print("Key is aliased")
+            if ev.detail == self.key_alias["x"]:
+                self.start_terminal()
+            elif ev.detail == self.key_alias["q"] and ev.child != X.NONE:
+                self.destroy_window(ev.child)
+        else:
+            print("Key is not aliased")
 
     def loop(self):
         while 1:
@@ -327,14 +337,7 @@ class Session:
             elif ev.type == X.LeaveNotify:
                 self.set_unfocus_window_border(ev.window)
             elif ev.type == X.KeyPress:
-                if ev.detail in self.key_alias.values():
-                    print("Key is aliased")
-                    if ev.detail == self.key_alias["x"]:
-                        self.start_terminal()
-                    elif ev.detail == self.key_alias["q"] and ev.child != X.NONE:
-                        self.destroy_window(ev.child)
-                else:
-                    print("Key is not aliased")
+                self.handle_keypress(ev)
             elif ev.type == X.ButtonPress and ev.child != X.NONE:
                 self.raise_window(ev.child)
                 self.attr = ev.child.get_geometry()
