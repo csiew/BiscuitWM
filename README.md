@@ -8,7 +8,7 @@ Development and testing is being done in a Debian 10.4.0 virtual machine.
 **WARNING:** This project is still in alpha. It is not recommended to run BiscuitWM on a production machine without using Xephyr to run an embedded X session!
 
 ## Install guide
-Before running BiscuitWM, you must have the `python-xlib` library installed. To do so, use the `pip` Python package manager to install it:
+Before running BiscuitWM, you must have the `python3-xlib` library installed. To do so, use the `pip` Python package manager to install it:
 ```bash
 python -m pip install python-xlib
 ```
