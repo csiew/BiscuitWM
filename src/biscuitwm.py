@@ -17,8 +17,8 @@ DRAW_DESKBAR = True
 
 class SessionInfo:
     def __init__(self):
-        self.session_name = "BiscuitWM"
-        self.kernel_version = os.popen('uname -rm').read()[:-1]
+        self.session_name = "BiscuitWM".encode('utf-8')
+        self.kernel_version = os.popen('uname -rm').read()[:-1].encode('utf-8')
 
 
 class Session:
@@ -219,15 +219,13 @@ class Session:
                 self.set_unfocus_window_border(window)
 
     def set_unfocus_window_border(self, window):
-        border_color = self.colormap.alloc_named_color(\
-            "#000000").pixel
+        border_color = self.colormap.alloc_named_color("#000000").pixel
         window.configure(border_width=1)
         window.change_attributes(None, border_pixel=border_color)
 
     def set_focus_window_border(self, window):
         if not self.is_dock(window):
-            border_color = self.colormap.alloc_named_color(\
-                "#ff0000").pixel
+            border_color = self.colormap.alloc_named_color("#ff0000").pixel
             window.configure(border_width=1)
             window.change_attributes(None, border_pixel=border_color)
 
@@ -343,21 +341,22 @@ class Session:
                 self.start = None
                 self.attr = None
 
-            self.draw_deskbar_content()
-            self.dpy.flush()
+            if DRAW_DESKBAR is True:
+                self.draw_deskbar_content()
+            self.dpy.sync()
     
     def main(self):
         # Register keyboard and mouse events
         self.dpy_root.grab_key(
             self.dpy.keysym_to_keycode(XK.string_to_keysym("Space")),
-            X.Mod1Mask | X.Mod2Mask,
+            X.Mod1Mask,
             1,
             X.GrabModeAsync,
             X.GrabModeAsync
         )
         self.dpy_root.grab_button(
             1,
-            X.Mod1Mask | X.Mod2Mask,
+            X.Mod1Mask,
             1,
             X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask,
             X.GrabModeAsync,
@@ -367,7 +366,7 @@ class Session:
         )
         self.dpy_root.grab_button(
             3,
-            X.Mod1Mask | X.Mod2Mask,
+            X.Mod1Mask,
             1,
             X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask,
             X.GrabModeAsync,
@@ -385,10 +384,6 @@ class Session:
         for child in children:
             if child.get_attributes().map_state:
                 self.manage_window(child)
-            '''
-            window = self.managed_windows[-1]
-            self.focus_window(window)
-            '''
 
         # Event loop
         try:
