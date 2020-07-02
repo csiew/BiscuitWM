@@ -25,6 +25,7 @@ class Preferences:
             AUTO_WINDOW_PLACE=True,
             AUTO_WINDOW_FIT=True,
             AUTO_WINDOW_RAISE=True,
+            CENTER_WINDOW_PLACEMENT=True,
             DRAW_DESKBAR=True,
             WINDOW_BORDER_WIDTH=2,
             ACTIVE_WINDOW_BORDER_COLOR="#ff0000",
@@ -34,6 +35,7 @@ class Preferences:
         self.AUTO_WINDOW_PLACE = AUTO_WINDOW_PLACE
         self.AUTO_WINDOW_FIT = AUTO_WINDOW_FIT
         self.AUTO_WINDOW_RAISE = AUTO_WINDOW_RAISE
+        self.CENTER_WINDOW_PLACEMENT = CENTER_WINDOW_PLACEMENT
         self.DRAW_DESKBAR = DRAW_DESKBAR
         self.WINDOW_BORDER_WIDTH = WINDOW_BORDER_WIDTH
         self.ACTIVE_WINDOW_BORDER_COLOR = ACTIVE_WINDOW_BORDER_COLOR
@@ -270,21 +272,22 @@ class Session:
 
     def decorate_window(self, window):
         self.set_cursor(window)
+        window_dimensions = self.get_window_geometry(window)
+        window_width, window_height = window_dimensions.width, window_dimensions.height
         window_x = 5
         window_y = 25
-        window_dimensions = self.get_window_geometry(window)
-        window_width = window_dimensions.width
-        window_height = window_dimensions.height
-        display_dimensions = self.get_display_geometry()
         if self.is_dock(window) is False:
             if self.prefs.AUTO_WINDOW_PLACE is True:
                 # Move new window out of the way of the deskbar
                 if self.prefs.AUTO_WINDOW_FIT is True:
                     # Resize window to fit the screen
-                    if window_dimensions.width+window_x >= display_dimensions.width:
+                    if window_dimensions.width+window_x >= self.display_dimensions.width:
                         window_width -= window_x*2
-                    if window_dimensions.height+window_y >= display_dimensions.height:
+                    if window_dimensions.height+window_y >= self.display_dimensions.height:
                         window_height -= window_y*2
+                if self.prefs.CENTER_WINDOW_PLACEMENT:
+                    window_x = (self.display_dimensions.width - window_width)//2
+                    window_y = (self.display_dimensions.height - window_height)//2
                 window.configure(
                     x=window_x,
                     y=window_y,
@@ -315,6 +318,23 @@ class Session:
             (0, 0, 0)
         )
         window.change_attributes(cursor=cursor)
+
+    def draw_window_titlebar(self, window):
+        window_dimensions = self.get_window_geometry(window)
+        window_width, window_height = window_dimensions.width, window_dimensions.height
+        window_x, window_y = window_dimensions.x, window_dimensions.y
+        window_titlebar = self.dpy_root.create_window(
+            window_x, window_y, window_width, 20, 1,
+            self.screen.root_depth,
+            background_pixel=self.screen.white_pixel,
+            event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
+        )
+        window_titlebar_gc = window_titlebar.create_gc(
+            foreground=self.screen.black_pixel,
+            background=self.screen.white_pixel,
+        )
+        window_titlebar.map()
+        window_titlebar.draw_text(window_titlebar_gc, 5, 15, self.get_window_title(window).encode('utf-8'))
 
     def draw_deskbar(self):
         screen_dimensions = self.get_display_geometry()
