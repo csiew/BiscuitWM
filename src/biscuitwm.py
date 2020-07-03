@@ -2,24 +2,95 @@
 
 import os
 import sys
+import time
 import subprocess
+from threading import Timer
 from Xlib.display import Display
-from Xlib import X, XK, Xatom, Xcursorfont, display, protocol, error
-from Xlib.ext import shape
+from Xlib import X, XK, Xatom, Xcursorfont, display, error
 
 ## CONSTANTS
 
 PNT_OFFSET = 16
 
 
-class SessionInfo:
+class SessionInfo(object):
     def __init__(self):
         self.session_name = "BiscuitWM"
         self.kernel_version = os.popen('uname -rm').read()[:-1]
 
 
-class Deskbar:
-    def __init__(self, dpy, dpy_root, screen, display_dimensions, wm_window_type, wm_window_type_dock):
+'''
+Thanks to MestreLion for their RepeatedTimer implementation
+https://stackoverflow.com/a/13151299
+- Standard library only, no external dependencies
+- start() and stop() are safe to call multiple times even if the timer has already started/stopped
+- function to be called can have positional and named arguments
+- You can change interval anytime, it will be effective after next run. Same for args, kwargs and even function!
+'''
+class RepeatedTimer(object):
+    def __init__(self, interval, function, *args, **kwargs):
+        self._timer = None
+        self.interval = interval
+        self.function = function
+        self.args = args
+        self.kwargs = kwargs
+        self.is_running = False
+        self.start()
+
+    def _run(self):
+        self.is_running = False
+        self.start()
+        self.function(*self.args, **self.kwargs)
+
+    def start(self):
+        if not self.is_running:
+            self._timer = Timer(self.interval, self._run)
+            self._timer.start()
+            self.is_running = True
+
+    def stop(self):
+        self._timer.cancel()
+        self.is_running = False
+
+
+class DeskbarItem(object):
+    def __init__(self, name, text="", width=0, interval=None, function=None):
+        self.name = name
+        self.text = text
+        self.width = 0
+        self.interval = interval
+        self.function = function
+        if interval is not None and function is not None:
+            self.rt_event = RepeatedTimer(interval, function)
+        else:
+            self.rt_event = None
+
+    def set_rt_event(self, interval, function):
+        self.interval = interval
+        self.function = function
+        self.rt_event = RepeatedTimer(interval, function)
+
+    def unset_rt_event(self):
+        if self.rt_event is not None:
+            self.rt_event.stop()
+            self.rt_event = None
+            self.interval = None
+            self.function = None
+
+    def start(self):
+        if self.rt_event is not None:
+            self.rt_event.start()
+
+    def stop(self):
+        if self.rt_event is not None:
+            self.rt_event.stop()
+
+
+class Deskbar(object):
+    def __init__(
+            self, dpy, dpy_root, screen, display_dimensions,
+            wm_window_type, wm_window_type_dock
+    ):
         self.dpy = dpy
         self.dpy_root = dpy_root
         self.screen = screen
@@ -29,37 +100,60 @@ class Deskbar:
 
         self.border_width = 1
         self.height = 20
+        self.text_y_alignment = 15
+        self.padding_leading = 10
+        self.padding_trailing = 15
+        self.padding_between = 10
+
+        self.refresh_rate = 5
 
         self.deskbar = None
         self.deskbar_gc = None
 
-        self.leading = {
-            "active_window_title": ""
+        self.deskbar_items = {
+            "active_window_title": DeskbarItem("Window Title", text="BiscuitWM"),
+            "memory_usage": DeskbarItem("Memory Usage", interval=10, function=self.set_memory_usage),
+            "timestamp": DeskbarItem("Time", interval=1, function=self.set_timestamp)
         }
-        self.trailing = {
-            "timestamp": ""
-        }
+        self.deskbar_update_rt = RepeatedTimer(1, self.update)
 
     def set_active_window_title(self, window_title):
-        self.leading["active_window_title"] = window_title
+        self.deskbar_items["active_window_title"].text = window_title
+        self.deskbar_items["active_window_title"].width = self.get_string_physical_width(window_title)
 
-    def set_timestamp(self, timestamp):
-        self.trailing["timestamp"] = timestamp
+    def set_memory_usage(self):
+        self.deskbar_items["memory_usage"].text = self.get_memory_usage() + "%"
+        self.deskbar_items["memory_usage"].width = self.get_string_physical_width(self.deskbar_items["memory_usage"].text)
+
+    def set_timestamp(self):
+        self.deskbar_items["timestamp"].text = self.get_current_time()
+        self.deskbar_items["timestamp"].width = self.get_string_physical_width(self.deskbar_items["timestamp"].text)
 
     def get_string_physical_width(self, text):
         font = self.dpy.open_font('9x15')
         result = font.query_text_extents(text.encode())
         return result.overall_width
 
+    def get_memory_usage(self):
+        return os.popen("free -m | awk 'NR==2{printf $3*100/$2}'").read()[:-1]
+
     def get_current_time(self):
-        timestamp = os.popen('date +"%I:%M %P"').read()[:-1]
-        width = self.get_string_physical_width(timestamp)
-        return [timestamp, width]
+        return os.popen('date +"%I:%M:%S %P"').read()[:-1]
+
+    def start_repeated_events(self):
+        for item in self.deskbar_items.values():
+            item.start()
+        self.deskbar_update_rt.start()
+
+    def stop_repeated_events(self):
+        for item in self.deskbar_items.values():
+            item.stop()
+        self.deskbar_update_rt.stop()
 
     def draw(self):
         screen_width, screen_height = self.display_dimensions.width, self.display_dimensions.height
         self.deskbar = self.dpy_root.create_window(
-            -1, -1, screen_width, 20, 1,
+            -1, -1, screen_width, self.height, 1,
             self.screen.root_depth,
             background_pixel=self.screen.white_pixel,
             event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
@@ -69,32 +163,44 @@ class Deskbar:
             foreground=self.screen.black_pixel,
             background=self.screen.white_pixel,
         )
-        self.deskbar.map()
-        self.update()
+        self.deskbar.map()              # Draw deskbar
+        self.set_timestamp()            # Set initial timestamp
+        self.set_memory_usage()         # Set initial memory usage percentage
+        self.update()                   # Initial update
+        self.start_repeated_events()    # Start deskbar updates
 
     def update(self):
-        self.trailing["timestamp"], timestamp_width = self.get_current_time()
-
         self.deskbar.raise_window()
         self.deskbar.clear_area()
 
         # Leading items
         self.deskbar.draw_text(
             self.deskbar_gc,
-            10,
-            15,
-            self.leading["active_window_title"].encode('utf-8'))
+            self.padding_leading,
+            self.text_y_alignment,
+            self.deskbar_items["active_window_title"].text.encode('utf-8')
+        )
 
         # Trailing items
         self.deskbar.draw_text(
             self.deskbar_gc,
-            self.display_dimensions.width - (timestamp_width - 15),
-            15,
-            self.trailing["timestamp"].encode('utf-8')
+            self.display_dimensions.width - (
+                    (self.deskbar_items["memory_usage"].width
+                     + self.deskbar_items["timestamp"].width)
+                    - (self.padding_between + self.padding_trailing)
+            ),
+            self.text_y_alignment,
+            self.deskbar_items["memory_usage"].text.encode('utf-8')
+        )
+        self.deskbar.draw_text(
+            self.deskbar_gc,
+            self.display_dimensions.width-(self.deskbar_items["timestamp"].width-self.padding_trailing),
+            self.text_y_alignment,
+            self.deskbar_items["timestamp"].text.encode('utf-8')
         )
 
 
-class Preferences:
+class Preferences(object):
     def __init__(
             self,
             DEBUG=True,
@@ -118,7 +224,7 @@ class Preferences:
         self.INACTIVE_WINDOW_BORDER_COLOR = INACTIVE_WINDOW_BORDER_COLOR
 
 
-class WindowManager:
+class WindowManager(object):
     def __init__(self, prefs, session_info):
         self.prefs = prefs
         self.session_info = session_info
@@ -458,7 +564,8 @@ class WindowManager:
         self.key_alias["x"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("x"))
         self.key_alias["q"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("q"))
         self.key_alias["F1"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("F1"))
-        self.key_alias["Tab"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("Tab"))
+        self.key_alias["Tab"] = self.dpy.keysym_to_keycode(XK.XK_Tab)
+        self.key_alias["Escape"] = self.dpy.keysym_to_keycode(XK.XK_Escape)
 
     def handle_keypress(self, ev):
         if ev.detail in self.key_alias.values():
@@ -468,9 +575,12 @@ class WindowManager:
             elif ev.detail == self.key_alias["q"] and ev.child != X.NONE:
                 self.destroy_window(ev.child)
             elif ev.detail == self.key_alias["F1"] and ev.child != X.NONE:
+                self.focus_window(ev.window)
                 self.raise_window(ev.window)
-            elif ev.detail == self.key_alias["Tab"] and ev.child != X.NONE:
+            elif ev.detail == self.key_alias["Tab"]:
                 self.cycle_windows()
+            elif ev.detail == self.key_alias["Escape"]:
+                self.end_session()
         else:
             print("Key is not aliased")
 
@@ -523,8 +633,6 @@ class WindowManager:
                 self.start = None
                 self.attr = None
 
-            if self.prefs.DRAW_DESKBAR is True:
-                self.deskbar.update()
             self.dpy.flush()
     
     def main(self):
@@ -568,11 +676,15 @@ class WindowManager:
         if self.prefs.DRAW_DESKBAR is True:
             self.deskbar.draw()
 
-        # Event loop
         try:
             self.loop()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt or error.ConnectionClosedError:
             sys.exit(0)
+
+    def end_session(self):
+        self.deskbar.stop_repeated_events()
+        self.dpy.close()
+        sys.exit(0)
 
 
 if __name__ == "__main__":
