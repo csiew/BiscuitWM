@@ -126,11 +126,12 @@
 		<li><span class="codeblock">python3-xlib</span></li>
 	</ul>
 	<p>
-		In Debian/Ubuntu, use <span class="codeblock">apt</span> or <span class="codeblock">apt-get</span> to add the relevant packages:
+		In Debian/Ubuntu, use <span class="codeblock">apt</span> or <span class="codeblock">apt-get</span> to add the relevant packages. After install these packages, use <span class="codeblock">pip</span> to install the relevant Python libraries.
 	</p>
 	<div class="codeblock codeblock-big">
 		sudo apt update<br>
-		sudo apt install python3 python3-pip python3-xlib
+		sudo apt install python3 python3-pip python3-xlib<br><br>
+		python3 -m pip install python-xlib x11util perlcompat
 	</div>
 	<h3>Download</h3>
 	<p>

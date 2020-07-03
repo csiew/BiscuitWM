@@ -5,12 +5,14 @@ import sys
 import subprocess
 from threading import Timer
 import Xlib.threaded
-from Xlib import X, XK, Xatom, Xcursorfont, display, protocol, error
+from Xlib import X, display, XK, Xatom, Xcursorfont, error
 from Xlib.ext import shape
+from x11util import load_font
 
+# GLOBAL VARIABLES
 
-global hasRun
 hasRun = False
+FONT_NAME = '9x15'
 
 
 class SessionInfo(object):
@@ -95,7 +97,9 @@ class Deskbar(object):
         self.dpy_root = dpy_root
         self.screen = screen
         self.colormap = self.screen.default_colormap
+        self.system_font = load_font(self.dpy, FONT_NAME)
         self.display_dimensions = display_dimensions
+
         self.wm_window_type = wm_window_type
         self.wm_window_types = wm_window_types
         self.wm_state = wm_state
@@ -106,7 +110,7 @@ class Deskbar(object):
         self.text_y_alignment = 15
         self.padding_leading = 10
         self.padding_between = 20
-        self.padding_trailing = 20
+        self.padding_trailing = 10
 
         self.refresh_rate = 5
 
@@ -133,7 +137,7 @@ class Deskbar(object):
         self.deskbar_items["timestamp"].width = self.get_string_physical_width(self.deskbar_items["timestamp"].text)
 
     def get_string_physical_width(self, text):
-        font = self.dpy.open_font('9x15')
+        font = self.dpy.open_font(FONT_NAME)
         result = font.query_text_extents(text.encode())
         return result.overall_width
 
@@ -163,6 +167,7 @@ class Deskbar(object):
         )
         self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
         self.deskbar_gc = self.deskbar.create_gc(
+            font=self.system_font,
             foreground=self.screen.black_pixel,
             background=self.screen.white_pixel,
         )
@@ -191,23 +196,18 @@ class Deskbar(object):
         self.deskbar.draw_text(
             self.deskbar_gc,
             self.display_dimensions.width - (
-                    (self.deskbar_items["memory_usage"].width - self.padding_between)
-                    + (self.deskbar_items["timestamp"].width - self.padding_trailing)
+                    (self.deskbar_items["memory_usage"].width + self.padding_between)
+                    + (self.deskbar_items["timestamp"].width + self.padding_trailing)
             ),
             self.text_y_alignment,
             self.deskbar_items["memory_usage"].text.encode('utf-8')
         )
         self.deskbar.draw_text(
             self.deskbar_gc,
-            self.display_dimensions.width - (self.deskbar_items["timestamp"].width - self.padding_trailing),
+            self.display_dimensions.width - (self.deskbar_items["timestamp"].width + self.padding_trailing),
             self.text_y_alignment,
             self.deskbar_items["timestamp"].text.encode('utf-8')
         )
-
-    def reload(self):
-        print("Reloading deskbar")
-        self.deskbar.destroy()
-        self.deskbar.draw()
 
 
 class Preferences(object):
