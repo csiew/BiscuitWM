@@ -11,7 +11,7 @@ from x11util import load_font
 
 # GLOBAL VARIABLES
 
-hasRun = False
+ROUNDED_CORNER_HAS_RUN = False
 FONT_NAME = '9x15'
 
 
@@ -514,7 +514,7 @@ class WindowManager(object):
                     width=window_width,
                     height=window_height
                 )
-                self.set_unfocus_window_border(window)
+            self.set_unfocus_window_border(window)
 
     def set_unfocus_window_border(self, window):
         if not self.is_dock(window):
@@ -571,7 +571,7 @@ class WindowManager(object):
         )
 
         def draw_corner(window, arc_start, arc_one, arc_two, pos_x, pos_y, pos_in_x=0, pos_in_y=0):
-            global hasRun
+            global ROUNDED_CORNER_HAS_RUN
 
             def draw_corner_pixmap(window, arc_start, arc_one, arc_two, pos_in_x=0, pos_in_y=0):
                 corner_pm = window.create_pixmap(bg_size, bg_size, 1)
@@ -583,9 +583,9 @@ class WindowManager(object):
 
             corner_pixmap = draw_corner_pixmap(window, arc_start, arc_one, arc_two, pos_in_x, pos_in_y)
 
-            if not hasRun:
+            if not ROUNDED_CORNER_HAS_RUN:
                 window.shape_mask(shape.SO.Set, shape.SK.Bounding, pos_x, pos_y, corner_pixmap)
-                hasRun = True
+                ROUNDED_CORNER_HAS_RUN = True
             else:
                 window.shape_mask(shape.SO.Union, shape.SK.Bounding, pos_x, pos_y, corner_pixmap)
             return
@@ -683,7 +683,7 @@ class WindowManager(object):
             if ev.type in [X.EnterNotify, X.LeaveNotify, X.MapNotify]:
                 self.set_active_window_title(ev.window)
 
-            if ev.type == X.MapNotify:
+            elif ev.type == X.MapNotify:
                 try:
                     self.manage_window(ev.window)
                     self.focus_window(ev.window)
