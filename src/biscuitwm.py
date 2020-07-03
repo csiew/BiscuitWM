@@ -474,22 +474,6 @@ class WindowManager(object):
 
     ### WINDOW DECORATION
 
-    def maximize_window(self, window):
-        if self.prefs.DEBUG is True:
-            print("Maximize window triggered")
-        window_width, window_height = self.display_dimensions.width, self.display_dimensions.height
-        window_x = 0
-        window_y = self.deskbar.height if self.prefs.DRAW_DESKBAR is True else 0
-        window.configure(
-            x=window_x,
-            y=window_y,
-            width=window_width,
-            height=window_height
-        )
-        window.change_property(self.wm_state, Xatom.ATOM, 32, [self.wm_window_status["maximize_vertical"]], X.PropModeReplace)
-        window.change_property(self.wm_state, Xatom.ATOM, 32, [self.wm_window_status["maximize_horizontal"]], X.PropModeReplace)
-        self.dpy.flush()
-
     def decorate_window(self, window):
         self.set_cursor(window)
         window_dimensions = self.get_window_geometry(window)
@@ -538,23 +522,6 @@ class WindowManager(object):
             (0, 0, 0)
         )
         window.change_attributes(cursor=cursor)
-
-    def draw_window_titlebar(self, window):
-        window_dimensions = self.get_window_geometry(window)
-        window_width, window_height = window_dimensions.width, window_dimensions.height
-        window_x, window_y = window_dimensions.x, window_dimensions.y
-        window_titlebar = self.dpy_root.create_window(
-            window_x, window_y, window_width, 20, 1,
-            self.screen.root_depth,
-            background_pixel=self.screen.white_pixel,
-            event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
-        )
-        window_titlebar_gc = window_titlebar.create_gc(
-            foreground=self.screen.black_pixel,
-            background=self.screen.white_pixel,
-        )
-        window_titlebar.map()
-        window_titlebar.draw_text(window_titlebar_gc, 5, 15, self.get_window_title(window).encode('utf-8'))
 
     def draw_display_corners(self):
         bg_size = 16  # Default corner size
@@ -653,7 +620,6 @@ class WindowManager(object):
         self.key_alias["F1"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("F1"))
         self.key_alias["Tab"] = self.dpy.keysym_to_keycode(XK.XK_Tab)
         self.key_alias["Escape"] = self.dpy.keysym_to_keycode(XK.XK_Escape)
-        self.key_alias["Equals"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("equal"))
 
     def handle_keypress(self, ev):
         if ev.detail in self.key_alias.values():
@@ -665,8 +631,6 @@ class WindowManager(object):
             elif ev.detail == self.key_alias["F1"] and ev.child != X.NONE:
                 self.focus_window(ev.window)
                 self.raise_window(ev.window)
-            elif ev.detail == self.key_alias["Equals"] and ev.child != X.NONE:
-                self.maximize_window(ev.window)
             elif ev.detail == self.key_alias["Tab"]:
                 self.cycle_windows()
             elif ev.detail == self.key_alias["Escape"]:
