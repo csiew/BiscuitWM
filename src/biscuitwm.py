@@ -89,15 +89,15 @@ class DeskbarItem(object):
 class Deskbar(object):
     def __init__(
             self, dpy, dpy_root, screen, display_dimensions,
-            wm_window_type, wm_window_type_dock, wm_window_status_above
+            wm_window_type, wm_window_types, wm_window_status
     ):
         self.dpy = dpy
         self.dpy_root = dpy_root
         self.screen = screen
         self.display_dimensions = display_dimensions
         self.wm_window_type = wm_window_type
-        self.wm_window_type_dock = wm_window_type_dock
-        self.wm_window_status_above = wm_window_status_above
+        self.wm_window_types = wm_window_types
+        self.wm_window_status = wm_window_status
 
         self.border_width = 1
         self.height = 20
@@ -159,8 +159,9 @@ class Deskbar(object):
             background_pixel=self.screen.white_pixel,
             event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
         )
-        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_type_dock], X.PropModeReplace)
-        self.deskbar.change_property(self.wm_window_status_above, Xatom.ATOM, 32, [1], X.PropModeReplace)
+        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
+        self.deskbar.change_property(self.wm_window_status["above"], Xatom.ATOM, 32, [1], X.PropModeReplace)
+        self.deskbar.change_property(self.wm_window_status["skip_taskbar"], Xatom.ATOM, 32, [1], X.PropModeReplace)
         self.deskbar_gc = self.deskbar.create_gc(
             foreground=self.screen.black_pixel,
             background=self.screen.white_pixel,
@@ -211,7 +212,7 @@ class Preferences(object):
             CENTER_WINDOW_PLACEMENT=True,
             DRAW_DESKBAR=True,
             WINDOW_BORDER_WIDTH=2,
-            ACTIVE_WINDOW_BORDER_COLOR="#ff0000",
+            ACTIVE_WINDOW_BORDER_COLOR="#A0522D",
             INACTIVE_WINDOW_BORDER_COLOR="#000000"
         ):
         self.DEBUG = DEBUG
@@ -260,7 +261,8 @@ class WindowManager(object):
         }
         self.wm_window_status = {
             "active": self.dpy.intern_atom('_NET_ACTIVE_WINDOW'),
-            "above": self.dpy.intern_atom('_NET_WM_STATE_ABOVE')
+            "above": self.dpy.intern_atom('_NET_WM_STATE_ABOVE'),
+            "skip_taskbar": self.dpy.intern_atom('_NET_WM_STATE_SKIP_TASKBAR')
         }
 
         self.wm_window_cyclical = [
@@ -274,7 +276,7 @@ class WindowManager(object):
 
         self.deskbar = Deskbar(
             self.dpy, self.dpy_root, self.screen, self.display_dimensions,
-            self.wm_window_type, self.wm_window_types["dock"], self.wm_window_status["above"]
+            self.wm_window_type, self.wm_window_types, self.wm_window_status
         )
         self.display_corners = None
 
@@ -573,6 +575,7 @@ class WindowManager(object):
         self.display_corners.shape_select_input(0)
         self.display_corners.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
         self.display_corners.change_property(self.wm_window_status["above"], Xatom.ATOM, 32, [1], X.PropModeReplace)
+        self.display_corners.change_property(self.wm_window_status["skip_taskbar"], Xatom.ATOM, 32, [1], X.PropModeReplace)
         self.display_corners.map()
 
     # DEBUG
