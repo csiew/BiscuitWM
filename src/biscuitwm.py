@@ -7,10 +7,6 @@ from threading import Timer
 from Xlib.display import Display
 from Xlib import X, XK, Xatom, Xcursorfont, display, error
 
-## CONSTANTS
-
-PNT_OFFSET = 16
-
 
 class SessionInfo(object):
     def __init__(self):
