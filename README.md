@@ -73,5 +73,6 @@ biscuitwm-session
 The `run_dev.sh` script will be improved in the future.
 
 ## Acknowledgements
-- BiscuitWM is based off the work of Nick Welch (2005, 2011) and Hiroyuki Ohsaki (2019-Present). It also uses a code snippet by Rodrigo Silva (2016).
+See the [acknowledgements section of the website](https://csiew.github.io/BiscuitWM#acknowledgements) for more details.
+- BiscuitWM is based off the work of Nick Welch (2005, 2011) and Hiroyuki Ohsaki (2019-Present). It also uses a code snippet by Rodrigo Silva (2016) and integrates a project by vulkd (2017, 2019).
 - The project's logo uses a modified version of [this image](https://www.wallpaperflare.com/biscuit-placed-on-brown-wooden-surface-crumb-butter-biscuit-wallpaper-wcwij).

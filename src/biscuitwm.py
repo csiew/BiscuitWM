@@ -6,6 +6,11 @@ import subprocess
 from threading import Timer
 from Xlib.display import Display
 from Xlib import X, XK, Xatom, Xcursorfont, display, error
+from Xlib.ext import shape
+
+
+global hasRun
+hasRun = False
 
 
 class SessionInfo(object):
@@ -84,7 +89,7 @@ class DeskbarItem(object):
 class Deskbar(object):
     def __init__(
             self, dpy, dpy_root, screen, display_dimensions,
-            wm_window_type, wm_window_type_dock
+            wm_window_type, wm_window_type_dock, wm_window_status_above
     ):
         self.dpy = dpy
         self.dpy_root = dpy_root
@@ -92,6 +97,7 @@ class Deskbar(object):
         self.display_dimensions = display_dimensions
         self.wm_window_type = wm_window_type
         self.wm_window_type_dock = wm_window_type_dock
+        self.wm_window_status_above = wm_window_status_above
 
         self.border_width = 1
         self.height = 20
@@ -154,6 +160,7 @@ class Deskbar(object):
             event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
         )
         self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_type_dock], X.PropModeReplace)
+        self.deskbar.change_property(self.wm_window_status_above, Xatom.ATOM, 32, [1], X.PropModeReplace)
         self.deskbar_gc = self.deskbar.create_gc(
             foreground=self.screen.black_pixel,
             background=self.screen.white_pixel,
@@ -165,7 +172,6 @@ class Deskbar(object):
         self.start_repeated_events()    # Start deskbar updates
 
     def update(self):
-        self.deskbar.raise_window()
         self.deskbar.clear_area()
 
         # Leading items
@@ -268,8 +274,9 @@ class WindowManager(object):
 
         self.deskbar = Deskbar(
             self.dpy, self.dpy_root, self.screen, self.display_dimensions,
-            self.wm_window_type, self.wm_window_types["dock"]
+            self.wm_window_type, self.wm_window_types["dock"], self.wm_window_status["above"]
         )
+        self.display_corners = None
 
         self.set_cursor(self.dpy_root)
 
@@ -519,6 +526,55 @@ class WindowManager(object):
         window_titlebar.map()
         window_titlebar.draw_text(window_titlebar_gc, 5, 15, self.get_window_title(window).encode('utf-8'))
 
+    def draw_display_corners(self):
+        bg_size = 16  # Default corner size
+        corners = ['nw', 'ne', 'se', 'sw']  # Default corners to draw
+        bg_pm = self.dpy_root.create_pixmap(bg_size, bg_size, self.screen.root_depth)
+        bg_gc = self.dpy_root.create_gc(foreground=self.screen.black_pixel, background=self.screen.black_pixel)
+        bg_pm.fill_rectangle(bg_gc, 0, 0, bg_size, bg_size)
+
+        self.display_corners = self.dpy_root.create_window(
+            0, 0, self.display_dimensions.width, self.display_dimensions.height, 0,
+            self.screen.root_depth,
+            background_pixmap=bg_pm,
+            event_mask=(X.StructureNotifyMask)
+        )
+
+        def draw_corner(window, arc_start, arc_one, arc_two, pos_x, pos_y, pos_in_x=0, pos_in_y=0):
+            global hasRun
+
+            def draw_corner_pixmap(window, arc_start, arc_one, arc_two, pos_in_x=0, pos_in_y=0):
+                corner_pm = window.create_pixmap(bg_size, bg_size, 1)
+                corner_gc = corner_pm.create_gc(foreground=1, background=1)
+                corner_pm.fill_rectangle(corner_gc, 0, 0, bg_size, bg_size)
+                corner_gc.change(foreground=0)
+                corner_pm.fill_arc(corner_gc, pos_in_x, pos_in_y, bg_size, bg_size, arc_start, arc_one * arc_two)
+                return corner_pm
+
+            corner_pixmap = draw_corner_pixmap(window, arc_start, arc_one, arc_two, pos_in_x, pos_in_y)
+
+            if not hasRun:
+                window.shape_mask(shape.SO.Set, shape.SK.Bounding, pos_x, pos_y, corner_pixmap)
+                hasRun = True
+            else:
+                window.shape_mask(shape.SO.Union, shape.SK.Bounding, pos_x, pos_y, corner_pixmap)
+            return
+
+        sz = bg_size // 2
+        if "nw" in corners:  # Check for the co-ord in corners array (that can be changed by user)
+            draw_corner(self.display_corners, 11520, -90, 64, -sz, -sz, sz, sz)
+        if "ne" in corners:
+            draw_corner(self.display_corners, 0, 90, 64, self.display_dimensions.width - sz, -sz, -sz, sz)
+        if "se" in corners:
+            draw_corner(self.display_corners, 0, -90, 64, self.display_dimensions.width - sz, self.display_dimensions.height - sz, -sz, -sz)
+        if "sw" in corners:
+            draw_corner(self.display_corners, -5760, -90, 64, -sz, self.display_dimensions.height - sz, sz, -sz)
+
+        self.display_corners.shape_select_input(0)
+        self.display_corners.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
+        self.display_corners.change_property(self.wm_window_status["above"], Xatom.ATOM, 32, [1], X.PropModeReplace)
+        self.display_corners.map()
+
     # DEBUG
 
     def print_event_type(self, ev):
@@ -670,6 +726,9 @@ class WindowManager(object):
         # Draw deskbar
         if self.prefs.DRAW_DESKBAR is True:
             self.deskbar.draw()
+
+        # Draw display corners
+        self.draw_display_corners()
 
         try:
             self.loop()
