@@ -2,7 +2,6 @@
 
 import os
 import sys
-import time
 import subprocess
 from threading import Timer
 from Xlib.display import Display
