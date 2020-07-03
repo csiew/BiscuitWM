@@ -18,8 +18,21 @@ class SessionInfo:
         self.kernel_version = os.popen('uname -rm').read()[:-1]
 
 
-class DeskbarItems:
-    def __init__(self):
+class Deskbar:
+    def __init__(self, dpy, dpy_root, screen, display_dimensions, wm_window_type, wm_window_type_dock):
+        self.dpy = dpy
+        self.dpy_root = dpy_root
+        self.screen = screen
+        self.display_dimensions = display_dimensions
+        self.wm_window_type = wm_window_type
+        self.wm_window_type_dock = wm_window_type_dock
+
+        self.border_width = 1
+        self.height = 20
+
+        self.deskbar = None
+        self.deskbar_gc = None
+
         self.leading = {
             "active_window_title": ""
         }
@@ -32,6 +45,53 @@ class DeskbarItems:
 
     def set_timestamp(self, timestamp):
         self.trailing["timestamp"] = timestamp
+
+    def get_string_physical_width(self, text):
+        font = self.dpy.open_font('9x15')
+        result = font.query_text_extents(text.encode())
+        return result.overall_width
+
+    def get_current_time(self):
+        timestamp = os.popen('date +"%I:%M %P"').read()[:-1]
+        width = self.get_string_physical_width(timestamp)
+        return [timestamp, width]
+
+    def draw(self):
+        screen_width, screen_height = self.display_dimensions.width, self.display_dimensions.height
+        self.deskbar = self.dpy_root.create_window(
+            -1, -1, screen_width, 20, 1,
+            self.screen.root_depth,
+            background_pixel=self.screen.white_pixel,
+            event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
+        )
+        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_type_dock], X.PropModeReplace)
+        self.deskbar_gc = self.deskbar.create_gc(
+            foreground=self.screen.black_pixel,
+            background=self.screen.white_pixel,
+        )
+        self.deskbar.map()
+        self.update()
+
+    def update(self):
+        self.trailing["timestamp"], timestamp_width = self.get_current_time()
+
+        self.deskbar.raise_window()
+        self.deskbar.clear_area()
+
+        # Leading items
+        self.deskbar.draw_text(
+            self.deskbar_gc,
+            10,
+            15,
+            self.leading["active_window_title"].encode('utf-8'))
+
+        # Trailing items
+        self.deskbar.draw_text(
+            self.deskbar_gc,
+            self.display_dimensions.width - (timestamp_width - 15),
+            15,
+            self.trailing["timestamp"].encode('utf-8')
+        )
 
 
 class Preferences:
@@ -105,9 +165,10 @@ class WindowManager:
             self.wm_window_types["splash"]
         ]
 
-        self.deskbar_items = DeskbarItems()
-        self.deskbar = None
-        self.deskbar_gc = None
+        self.deskbar = Deskbar(
+            self.dpy, self.dpy_root, self.screen, self.display_dimensions,
+            self.wm_window_type, self.wm_window_types["dock"]
+        )
 
         self.set_cursor(self.dpy_root)
 
@@ -215,17 +276,7 @@ class WindowManager:
         else:
             self.active_window_title = window_title
         if self.prefs.DRAW_DESKBAR is True:
-            self.deskbar_items.leading["active_window_title"] = self.active_window_title
-
-    def get_string_physical_width(self, text):
-        font = self.dpy.open_font('9x15')
-        result = font.query_text_extents(text.encode())
-        return result.overall_width
-
-    def get_current_time(self):
-        timestamp = os.popen('date +"%I:%M %P"').read()[:-1]
-        width = self.get_string_physical_width(timestamp)
-        return [timestamp, width]
+            self.deskbar.set_active_window_title(self.active_window_title)
 
     ### WINDOW CONTROLS
 
@@ -367,45 +418,7 @@ class WindowManager:
         window_titlebar.map()
         window_titlebar.draw_text(window_titlebar_gc, 5, 15, self.get_window_title(window).encode('utf-8'))
 
-    def draw_deskbar(self):
-        screen_dimensions = self.display_dimensions
-        screen_width, screen_height = screen_dimensions.width, screen_dimensions.height
-        self.deskbar = self.dpy_root.create_window(
-            -1, -1, screen_width, 20, 1,
-            self.screen.root_depth,
-            background_pixel=self.screen.white_pixel,
-            event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
-        )
-        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
-        self.deskbar_gc = self.deskbar.create_gc(
-            foreground=self.screen.black_pixel,
-            background=self.screen.white_pixel,
-        )
-        self.deskbar.map()
-        self.update_deskbar()
-
-    def update_deskbar(self):
-        self.deskbar_items.trailing["timestamp"], timestamp_width = self.get_current_time()
-
-        self.deskbar.raise_window()
-        self.deskbar.clear_area()
-
-        # Leading items
-        self.deskbar.draw_text(
-            self.deskbar_gc,
-            10,
-            15,
-            self.deskbar_items.leading["active_window_title"].encode('utf-8'))
-
-        # Trailing items
-        self.deskbar.draw_text(
-            self.deskbar_gc,
-            self.display_dimensions.width - (timestamp_width - 15),
-            15,
-            self.deskbar_items.trailing["timestamp"].encode('utf-8')
-        )
-
-    ### DEBUG
+    # DEBUG
 
     def print_event_type(self, ev):
         event = ev.type
@@ -511,7 +524,7 @@ class WindowManager:
                 self.attr = None
 
             if self.prefs.DRAW_DESKBAR is True:
-                self.update_deskbar()
+                self.deskbar.update()
             self.dpy.flush()
     
     def main(self):
@@ -553,8 +566,7 @@ class WindowManager:
 
         # Draw deskbar
         if self.prefs.DRAW_DESKBAR is True:
-            self.draw_deskbar()
-            self.update_deskbar()
+            self.deskbar.draw()
 
         # Event loop
         try:
@@ -564,8 +576,4 @@ class WindowManager:
 
 
 if __name__ == "__main__":
-    session_info = SessionInfo()
-    prefs = Preferences()
-    session = WindowManager(prefs=prefs, session_info=session_info)
-    session.main()
-
+    WindowManager(prefs=Preferences(), session_info=SessionInfo()).main()
