@@ -478,7 +478,8 @@ class Session:
                 self.start = None
                 self.attr = None
 
-            self.update_deskbar()
+            if self.prefs.DRAW_DESKBAR is True:
+                self.update_deskbar()
             self.dpy.flush()
     
     def main(self):
