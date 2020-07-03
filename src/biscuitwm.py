@@ -14,8 +14,24 @@ PNT_OFFSET = 16
 
 class SessionInfo:
     def __init__(self):
-        self.session_name = "BiscuitWM".encode('utf-8')
-        self.kernel_version = os.popen('uname -rm').read()[:-1].encode('utf-8')
+        self.session_name = "BiscuitWM"
+        self.kernel_version = os.popen('uname -rm').read()[:-1]
+
+
+class DeskbarItems:
+    def __init__(self):
+        self.leading = {
+            "active_window_title": ""
+        }
+        self.trailing = {
+            "timestamp": ""
+        }
+
+    def set_active_window_title(self, window_title):
+        self.leading["active_window_title"] = window_title
+
+    def set_timestamp(self, timestamp):
+        self.trailing["timestamp"] = timestamp
 
 
 class Preferences:
@@ -42,7 +58,7 @@ class Preferences:
         self.INACTIVE_WINDOW_BORDER_COLOR = INACTIVE_WINDOW_BORDER_COLOR
 
 
-class Session:
+class WindowManager:
     def __init__(self, prefs, session_info):
         self.prefs = prefs
         self.session_info = session_info
@@ -57,6 +73,7 @@ class Session:
         self.managed_windows = []
         self.exposed_windows = []
         self.last_raised_window = None
+        self.active_window_title = self.session_info.session_name
         self.window_order = -1
 
         self.key_alias = {}
@@ -88,6 +105,7 @@ class Session:
             self.wm_window_types["splash"]
         ]
 
+        self.deskbar_items = DeskbarItems()
         self.deskbar = None
         self.deskbar_gc = None
 
@@ -190,6 +208,15 @@ class Session:
             return "BiscuitWM"
         return result
 
+    def set_active_window_title(self, window):
+        window_title = self.get_window_title(window)
+        if window_title is None:
+            self.active_window_title = self.session_info.session_name
+        else:
+            self.active_window_title = window_title
+        if self.prefs.DRAW_DESKBAR is True:
+            self.deskbar_items.leading["active_window_title"] = self.active_window_title
+
     def get_string_physical_width(self, text):
         font = self.dpy.open_font('9x15')
         result = font.query_text_extents(text.encode())
@@ -247,14 +274,11 @@ class Session:
                 return
             window.configure(stack_mode=X.Above)
             self.last_raised_window = window
+            self.set_active_window_title(window)
 
     def focus_window(self, window):
-        if not self.is_managed_window(window):
+        if self.is_dock(window) or not self.is_managed_window(window) or not self.is_alive_window(window):
             return
-
-        if not self.is_alive_window(window):
-            return
-
         window.set_input_focus(X.RevertToParent, 0)
         self.set_focus_window_border(window)
 
@@ -292,7 +316,7 @@ class Session:
                         window_width -= window_x*2
                     if window_dimensions.height+window_y >= self.display_dimensions.height:
                         window_height -= window_y*2
-                if self.prefs.CENTER_WINDOW_PLACEMENT:
+                if self.prefs.CENTER_WINDOW_PLACEMENT is True:
                     window_x = (self.display_dimensions.width - window_width)//2
                     window_y = (self.display_dimensions.height - window_height)//2
                 window.configure(
@@ -344,7 +368,7 @@ class Session:
         window_titlebar.draw_text(window_titlebar_gc, 5, 15, self.get_window_title(window).encode('utf-8'))
 
     def draw_deskbar(self):
-        screen_dimensions = self.get_display_geometry()
+        screen_dimensions = self.display_dimensions
         screen_width, screen_height = screen_dimensions.width, screen_dimensions.height
         self.deskbar = self.dpy_root.create_window(
             -1, -1, screen_width, 20, 1,
@@ -361,22 +385,27 @@ class Session:
         self.update_deskbar()
 
     def update_deskbar(self):
+        self.deskbar_items.trailing["timestamp"], timestamp_width = self.get_current_time()
+
         self.deskbar.raise_window()
         self.deskbar.clear_area()
-        timestamp, timestamp_width = self.get_current_time()
+
+        # Leading items
+        self.deskbar.draw_text(
+            self.deskbar_gc,
+            10,
+            15,
+            self.deskbar_items.leading["active_window_title"].encode('utf-8'))
+
+        # Trailing items
         self.deskbar.draw_text(
             self.deskbar_gc,
             self.display_dimensions.width - (timestamp_width - 15),
             15,
-            timestamp.encode('utf-8'))
-        if self.last_raised_window is None:
-            self.deskbar.draw_text(self.deskbar_gc, 10, 15, self.session_info.session_name)
-        else:
-            active_window_title = self.get_window_title(self.last_raised_window)
-            print("Active window: %s", active_window_title)
-            self.deskbar.draw_text(self.deskbar_gc, 10, 15, active_window_title.encode('utf-8'))
+            self.deskbar_items.trailing["timestamp"].encode('utf-8')
+        )
 
-    # DEBUG
+    ### DEBUG
 
     def print_event_type(self, ev):
         event = ev.type
@@ -438,7 +467,10 @@ class Session:
             if self.prefs.DEBUG is True:
                 self.print_event_type(ev)
 
-            if ev.type == X.CreateNotify:
+            if ev.type in [X.EnterNotify, X.LeaveNotify, X.MapNotify]:
+                self.set_active_window_title(ev.window)
+
+            if ev.type == X.MapNotify:
                 try:
                     self.manage_window(ev.window)
                     self.focus_window(ev.window)
@@ -534,6 +566,6 @@ class Session:
 if __name__ == "__main__":
     session_info = SessionInfo()
     prefs = Preferences()
-    session = Session(prefs=prefs, session_info=session_info)
+    session = WindowManager(prefs=prefs, session_info=session_info)
     session.main()
 
