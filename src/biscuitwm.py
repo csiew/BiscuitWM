@@ -4,8 +4,8 @@ import os
 import sys
 import subprocess
 from threading import Timer
-from Xlib.display import Display
-from Xlib import X, XK, Xatom, Xcursorfont, display, error
+import Xlib.threaded
+from Xlib import X, XK, Xatom, Xcursorfont, display, protocol, error
 from Xlib.ext import shape
 
 
@@ -89,22 +89,24 @@ class DeskbarItem(object):
 class Deskbar(object):
     def __init__(
             self, dpy, dpy_root, screen, display_dimensions,
-            wm_window_type, wm_window_types, wm_window_status
+            wm_window_type, wm_window_types, wm_state, wm_window_status
     ):
         self.dpy = dpy
         self.dpy_root = dpy_root
         self.screen = screen
+        self.colormap = self.screen.default_colormap
         self.display_dimensions = display_dimensions
         self.wm_window_type = wm_window_type
         self.wm_window_types = wm_window_types
+        self.wm_state = wm_state
         self.wm_window_status = wm_window_status
 
         self.border_width = 1
         self.height = 20
         self.text_y_alignment = 15
         self.padding_leading = 10
-        self.padding_trailing = 15
-        self.padding_between = 10
+        self.padding_between = 20
+        self.padding_trailing = 20
 
         self.refresh_rate = 5
 
@@ -123,7 +125,7 @@ class Deskbar(object):
         self.deskbar_items["active_window_title"].width = self.get_string_physical_width(window_title)
 
     def set_memory_usage(self):
-        self.deskbar_items["memory_usage"].text = self.get_memory_usage() + "%"
+        self.deskbar_items["memory_usage"].text = "MEM: " + self.get_memory_usage() + "%"
         self.deskbar_items["memory_usage"].width = self.get_string_physical_width(self.deskbar_items["memory_usage"].text)
 
     def set_timestamp(self):
@@ -160,8 +162,6 @@ class Deskbar(object):
             event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
         )
         self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
-        self.deskbar.change_property(self.wm_window_status["above"], Xatom.ATOM, 32, [1], X.PropModeReplace)
-        self.deskbar.change_property(self.wm_window_status["skip_taskbar"], Xatom.ATOM, 32, [1], X.PropModeReplace)
         self.deskbar_gc = self.deskbar.create_gc(
             foreground=self.screen.black_pixel,
             background=self.screen.white_pixel,
@@ -173,6 +173,10 @@ class Deskbar(object):
         self.start_repeated_events()    # Start deskbar updates
 
     def update(self):
+        self.deskbar.change_property(self.wm_state, Xatom.ATOM, 32, [self.wm_window_status["desktop"], 1, 0, 0, 0], X.PropModeReplace)
+        self.deskbar.change_property(self.wm_state, Xatom.ATOM, 32, [1, self.wm_window_status["skip_taskbar"], 0, 1, 0], X.PropModeReplace)
+        self.deskbar.change_property(self.wm_state, Xatom.ATOM, 32, [1, self.wm_window_status["above"], 0, 1, 0], X.PropModeReplace)
+        self.deskbar.raise_window()
         self.deskbar.clear_area()
 
         # Leading items
@@ -187,19 +191,23 @@ class Deskbar(object):
         self.deskbar.draw_text(
             self.deskbar_gc,
             self.display_dimensions.width - (
-                    (self.deskbar_items["memory_usage"].width
-                     + self.deskbar_items["timestamp"].width)
-                    - (self.padding_between + self.padding_trailing)
+                    (self.deskbar_items["memory_usage"].width - self.padding_between)
+                    + (self.deskbar_items["timestamp"].width - self.padding_trailing)
             ),
             self.text_y_alignment,
             self.deskbar_items["memory_usage"].text.encode('utf-8')
         )
         self.deskbar.draw_text(
             self.deskbar_gc,
-            self.display_dimensions.width-(self.deskbar_items["timestamp"].width-self.padding_trailing),
+            self.display_dimensions.width - (self.deskbar_items["timestamp"].width - self.padding_trailing),
             self.text_y_alignment,
             self.deskbar_items["timestamp"].text.encode('utf-8')
         )
+
+    def reload(self):
+        print("Reloading deskbar")
+        self.deskbar.destroy()
+        self.deskbar.draw()
 
 
 class Preferences(object):
@@ -230,10 +238,9 @@ class WindowManager(object):
     def __init__(self, prefs, session_info):
         self.prefs = prefs
         self.session_info = session_info
-        self.dpy = Display()
+        self.dpy = display.Display()
         self.screen = self.dpy.screen()
         self.dpy_root = self.screen.root
-        self.dpy_protocol = display.Display()
         self.colormap = self.screen.default_colormap
 
         self.display_dimensions = self.get_display_geometry()
@@ -250,6 +257,7 @@ class WindowManager(object):
         self.attr = None
 
         self.wm_window_type = self.dpy.intern_atom('_NET_WM_WINDOW_TYPE')
+        self.wm_state = self.dpy.intern_atom('_NET_WM_STATE')
         self.wm_window_types = {
             "dock": self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_DOCK'),
             "normal": self.dpy.intern_atom('_NET_WM_WINDOW_TYPE_NORMAL'),
@@ -261,8 +269,11 @@ class WindowManager(object):
         }
         self.wm_window_status = {
             "active": self.dpy.intern_atom('_NET_ACTIVE_WINDOW'),
+            "desktop": self.dpy.intern_atom('_NET_WM_DESKTOP'),
             "above": self.dpy.intern_atom('_NET_WM_STATE_ABOVE'),
-            "skip_taskbar": self.dpy.intern_atom('_NET_WM_STATE_SKIP_TASKBAR')
+            "skip_taskbar": self.dpy.intern_atom('_NET_WM_STATE_SKIP_TASKBAR'),
+            "maximize_vertical": self.dpy.intern_atom('_NET_WM_STATE_MAXIMIZED_VERT'),
+            "maximize_horizontal": self.dpy.intern_atom('_NET_WM_STATE_MAXIMIZED_HORIZ')
         }
 
         self.wm_window_cyclical = [
@@ -276,7 +287,8 @@ class WindowManager(object):
 
         self.deskbar = Deskbar(
             self.dpy, self.dpy_root, self.screen, self.display_dimensions,
-            self.wm_window_type, self.wm_window_types, self.wm_window_status
+            self.wm_window_type, self.wm_window_types,
+            self.wm_state, self.wm_window_status
         )
         self.display_corners = None
 
@@ -301,7 +313,7 @@ class WindowManager(object):
         result = None
         try:
             result = window.get_full_property(self.wm_window_type, Xatom.ATOM)
-        except error.BadWindow:
+        except error.BadWindow or RuntimeError:
             print("Failed to detect if window is dock")
             pass
         if result is not None and result.value[0] == self.wm_window_types["dock"]:
@@ -312,7 +324,7 @@ class WindowManager(object):
         result = None
         try:
             result = window.get_full_property(self.wm_window_type, Xatom.ATOM)
-        except error.BadWindow:
+        except error.BadWindow or RuntimeError:
             print("Failed to detect if window is dock")
             pass
         if result is not None and (result.value[0] == self.wm_window_types["menu"] or result.value[0] == self.wm_window_types["splash"]):
@@ -323,7 +335,7 @@ class WindowManager(object):
         result = None
         try:
             result = window.get_full_property(self.wm_window_type, Xatom.ATOM)
-        except error.BadWindow:
+        except error.BadWindow or RuntimeError:
             print("Failed to detect if window is dock")
             pass
         if result is not None and result.value[0] in self.wm_window_cyclical:
@@ -462,6 +474,22 @@ class WindowManager(object):
 
     ### WINDOW DECORATION
 
+    def maximize_window(self, window):
+        if self.prefs.DEBUG is True:
+            print("Maximize window triggered")
+        window_width, window_height = self.display_dimensions.width, self.display_dimensions.height
+        window_x = 0
+        window_y = self.deskbar.height if self.prefs.DRAW_DESKBAR is True else 0
+        window.configure(
+            x=window_x,
+            y=window_y,
+            width=window_width,
+            height=window_height
+        )
+        window.change_property(self.wm_state, Xatom.ATOM, 32, [self.wm_window_status["maximize_vertical"]], X.PropModeReplace)
+        window.change_property(self.wm_state, Xatom.ATOM, 32, [self.wm_window_status["maximize_horizontal"]], X.PropModeReplace)
+        self.dpy.flush()
+
     def decorate_window(self, window):
         self.set_cursor(window)
         window_dimensions = self.get_window_geometry(window)
@@ -574,9 +602,14 @@ class WindowManager(object):
 
         self.display_corners.shape_select_input(0)
         self.display_corners.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
-        self.display_corners.change_property(self.wm_window_status["above"], Xatom.ATOM, 32, [1], X.PropModeReplace)
-        self.display_corners.change_property(self.wm_window_status["skip_taskbar"], Xatom.ATOM, 32, [1], X.PropModeReplace)
+        self.refresh_dock_windows()
         self.display_corners.map()
+
+    def refresh_dock_windows(self):
+        self.display_corners.change_property(self.wm_state, Xatom.ATOM, 32, [self.wm_window_status["desktop"], 1, 0, 0, 0], X.PropModeReplace)
+        self.display_corners.change_property(self.wm_state, Xatom.ATOM, 32, [1, self.wm_window_status["skip_taskbar"], 0, 1, 0], X.PropModeReplace)
+        self.display_corners.change_property(self.wm_state, Xatom.ATOM, 32, [1, self.wm_window_status["above"], 0, 1, 0], X.PropModeReplace)
+        self.display_corners.raise_window()
 
     # DEBUG
 
@@ -620,6 +653,7 @@ class WindowManager(object):
         self.key_alias["F1"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("F1"))
         self.key_alias["Tab"] = self.dpy.keysym_to_keycode(XK.XK_Tab)
         self.key_alias["Escape"] = self.dpy.keysym_to_keycode(XK.XK_Escape)
+        self.key_alias["Equals"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("equal"))
 
     def handle_keypress(self, ev):
         if ev.detail in self.key_alias.values():
@@ -631,6 +665,8 @@ class WindowManager(object):
             elif ev.detail == self.key_alias["F1"] and ev.child != X.NONE:
                 self.focus_window(ev.window)
                 self.raise_window(ev.window)
+            elif ev.detail == self.key_alias["Equals"] and ev.child != X.NONE:
+                self.maximize_window(ev.window)
             elif ev.detail == self.key_alias["Tab"]:
                 self.cycle_windows()
             elif ev.detail == self.key_alias["Escape"]:
@@ -670,23 +706,24 @@ class WindowManager(object):
             elif ev.type == X.KeyPress:
                 self.handle_keypress(ev)
             elif ev.type == X.ButtonPress and ev.child != X.NONE:
-                self.raise_window(ev.child)
-                self.attr = ev.child.get_geometry()
-                self.start = ev
+                if not self.is_dock(ev.child):
+                    self.raise_window(ev.child)
+                    self.attr = ev.child.get_geometry()
+                    self.start = ev
             elif ev.type == X.MotionNotify and self.start:
                 xdiff = ev.root_x - self.start.root_x
                 ydiff = ev.root_y - self.start.root_y
-                if not self.is_dock(self.start.child):
-                    self.start.child.configure(
-                        x = self.attr.x + (self.start.detail == 1 and xdiff or 0),
-                        y = self.attr.y + (self.start.detail == 1 and ydiff or 0),
-                        width = max(1, self.attr.width + (self.start.detail == 3 and xdiff or 0)),
-                        height = max(1, self.attr.height + (self.start.detail == 3 and ydiff or 0))
-                    )
+                self.start.child.configure(
+                    x = self.attr.x + (self.start.detail == 1 and xdiff or 0),
+                    y = self.attr.y + (self.start.detail == 1 and ydiff or 0),
+                    width = max(1, self.attr.width + (self.start.detail == 3 and xdiff or 0)),
+                    height = max(1, self.attr.height + (self.start.detail == 3 and ydiff or 0))
+                )
             elif ev.type == X.ButtonRelease:
                 self.start = None
                 self.attr = None
 
+            self.refresh_dock_windows()
             self.dpy.flush()
     
     def main(self):
