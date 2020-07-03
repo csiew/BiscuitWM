@@ -683,7 +683,7 @@ class WindowManager(object):
             if ev.type in [X.EnterNotify, X.LeaveNotify, X.MapNotify]:
                 self.set_active_window_title(ev.window)
 
-            elif ev.type == X.MapNotify:
+            if ev.type == X.MapNotify:
                 try:
                     self.manage_window(ev.window)
                     self.focus_window(ev.window)
