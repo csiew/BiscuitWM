@@ -2,6 +2,7 @@
 
 import os
 import sys
+import json
 import subprocess
 from threading import Timer
 import Xlib.threaded
@@ -13,6 +14,7 @@ from x11util import load_font
 
 ROUNDED_CORNER_HAS_RUN = False
 FONT_NAME = '9x15'
+CONFIG_FILE_PATH = "/etc/biscuitwm/biscuitwm.json"
 
 
 class SessionInfo(object):
@@ -232,6 +234,33 @@ class Preferences(object):
         self.WINDOW_BORDER_WIDTH = WINDOW_BORDER_WIDTH
         self.ACTIVE_WINDOW_BORDER_COLOR = ACTIVE_WINDOW_BORDER_COLOR
         self.INACTIVE_WINDOW_BORDER_COLOR = INACTIVE_WINDOW_BORDER_COLOR
+
+        self.read_config(ignore=True)
+
+    def read_config(self, ignore=False):
+        def int_to_bool(value):
+            if value == 1:
+                return True
+            else:
+                return False
+
+        if ignore is False:
+            if os.path.exists(CONFIG_FILE_PATH):
+                with open(CONFIG_FILE_PATH, "r") as user_prefs:
+                    user_prefs = json.load(user_prefs)
+                    self.DEBUG = int_to_bool(user_prefs["DEBUG"])
+                    self.AUTO_WINDOW_PLACE = int_to_bool(user_prefs["AUTO_WINDOW_PLACE"])
+                    self.AUTO_WINDOW_FIT = int_to_bool(user_prefs["AUTO_WINDOW_FIT"])
+                    self.AUTO_WINDOW_RAISE = int_to_bool(user_prefs["AUTO_WINDOW_RAISE"])
+                    self.CENTER_WINDOW_PLACEMENT = int_to_bool(user_prefs["CENTER_WINDOW_PLACEMENT"])
+                    self.DRAW_DESKBAR = int_to_bool(user_prefs["DRAW_DESKBAR"])
+                    self.WINDOW_BORDER_WIDTH = user_prefs["WINDOW_BORDER_WIDTH"]
+                    self.ACTIVE_WINDOW_BORDER_COLOR = user_prefs["ACTIVE_WINDOW_BORDER_COLOR"]
+                    self.INACTIVE_WINDOW_BORDER_COLOR = user_prefs["INACTIVE_WINDOW_BORDER_COLOR"]
+            else:
+                print("Config file not found!")
+        else:
+            print("Ignoring config file... using defaults")
 
 
 class WindowManager(object):
