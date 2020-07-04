@@ -23,6 +23,30 @@ class SessionInfo(object):
         self.kernel_version = os.popen('uname -rm').read()[:-1]
 
 
+class PixelPalette(object):
+    def __init__(self, colormap):
+        self.colormap = colormap
+        self.hex_map = {
+            "red": "#ff0000",
+            "green": "#00ff00",
+            "blue": "#0000ff",
+            "black": "#000000",
+            "white": "#ffffff",
+        }
+
+    def get_named_pixel(self, color_name):
+        if color_name in self.hex_map.keys():
+            return self.colormap.alloc_named_color(self.hex_map[color_name]).pixel
+        else:
+            return self.colormap.alloc_named_color(self.hex_map["white"]).pixel
+
+    def get_custom_hex_pixel(self, hex_name):
+        try:
+            return self.colormap.alloc_named_color(hex_name).pixel
+        except:
+            return self.colormap.alloc_named_color(self.hex_map["white"]).pixel
+
+
 '''
 Thanks to MestreLion for their RepeatedTimer implementation
 https://stackoverflow.com/a/13151299
@@ -99,6 +123,7 @@ class Deskbar(object):
         self.dpy_root = dpy_root
         self.screen = screen
         self.colormap = self.screen.default_colormap
+        self.pixel_palette = PixelPalette(self.colormap)
         self.system_font = load_font(self.dpy, FONT_NAME)
         self.display_dimensions = display_dimensions
 
@@ -161,17 +186,19 @@ class Deskbar(object):
 
     def draw(self):
         screen_width, screen_height = self.display_dimensions.width, self.display_dimensions.height
+        foreground_pixel = self.pixel_palette.get_named_pixel("black")
+        background_pixel = self.pixel_palette.get_named_pixel("white")
         self.deskbar = self.dpy_root.create_window(
             -1, -1, screen_width, self.height, 1,
             self.screen.root_depth,
-            background_pixel=self.screen.white_pixel,
+            background_pixel=background_pixel,
             event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
         )
         self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
         self.deskbar_gc = self.deskbar.create_gc(
             font=self.system_font,
-            foreground=self.screen.black_pixel,
-            background=self.screen.white_pixel,
+            foreground=foreground_pixel,
+            background=background_pixel,
         )
         self.deskbar.map()              # Draw deskbar
         self.set_timestamp()            # Set initial timestamp
@@ -271,6 +298,7 @@ class WindowManager(object):
         self.screen = self.dpy.screen()
         self.dpy_root = self.screen.root
         self.colormap = self.screen.default_colormap
+        self.pixel_palette = PixelPalette(self.colormap)
 
         self.display_dimensions = self.get_display_geometry()
 
@@ -531,13 +559,13 @@ class WindowManager(object):
 
     def set_unfocus_window_border(self, window):
         if not self.is_dock(window):
-            border_color = self.colormap.alloc_named_color(self.prefs.INACTIVE_WINDOW_BORDER_COLOR).pixel
+            border_color = self.pixel_palette.get_custom_hex_pixel(self.prefs.INACTIVE_WINDOW_BORDER_COLOR)
             window.configure(border_width=self.prefs.WINDOW_BORDER_WIDTH)
             window.change_attributes(None, border_pixel=border_color)
 
     def set_focus_window_border(self, window):
         if not self.is_dock(window):
-            border_color = self.colormap.alloc_named_color(self.prefs.ACTIVE_WINDOW_BORDER_COLOR).pixel
+            border_color = self.pixel_palette.get_custom_hex_pixel(self.prefs.ACTIVE_WINDOW_BORDER_COLOR)
             window.configure(border_width=self.prefs.WINDOW_BORDER_WIDTH)
             window.change_attributes(None, border_pixel=border_color)
 
@@ -611,7 +639,7 @@ class WindowManager(object):
 
     def print_event_type(self, ev):
         event = ev.type
-        msg = "Unknown"
+        msg = None
         if event == X.CreateNotify:
             msg = "CreateNotify"
         elif event == X.DestroyNotify:
@@ -634,6 +662,8 @@ class WindowManager(object):
             msg = "KeyPress"
         elif event == X.ButtonPress:
             msg = "ButtonPress"
+        else:
+            return
         print(msg + " event")
 
     # SPECIAL
