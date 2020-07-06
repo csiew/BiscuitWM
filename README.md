@@ -40,21 +40,6 @@ Note that whichever window your cursor is hovering over will be the window with 
 ### Configuration
 BiscuitWM can read a JSON file (stored at `/etc/biscuitwm/biscuitwm.json`) for options such as debug output, window placement, window decorations, etc. BiscuitWM currently does not read from the file by default (you can enable this by changing the `ignore` parameter for the `self.read_config` call to `False`) due to how a lot of things are being changed rapidly.
 
-An example of `biscuitwm.json`:
-```json
-{
-	"DEBUG": 1,
-	"AUTO_WINDOW_PLACE": 1,
-	"AUTO_WINDOW_FIT": 1,
-	"AUTO_WINDOW_RAISE": 1,
-	"CENTER_WINDOW_PLACEMENT": 1,
-	"DRAW_DESKBAR": 1,
-	"WINDOW_BORDER_WIDTH": 2,
-	"ACTIVE_WINDOW_BORDER_COLOR": "#A0522D",
-	"INACTIVE_WINDOW_BORDER_COLOR": "#000000"
-}
-```
-
 ## Emulation guide
 Instead of constantly logging off, switching the Xsession, then logging in again to test, it will be easier to just run an embedded Xsession within your current session. To do this, install the Xephyr package (`xserver-xephyr`).
 
