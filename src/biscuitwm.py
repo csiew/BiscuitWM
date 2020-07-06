@@ -71,6 +71,8 @@ https://stackoverflow.com/a/13151299
 - function to be called can have positional and named arguments
 - You can change interval anytime, it will be effective after next run. Same for args, kwargs and even function!
 '''
+
+
 class RepeatedTimer(object):
     def __init__(self, interval, function, *args, **kwargs):
         self._timer = None
@@ -150,6 +152,7 @@ class Deskbar(object):
         self.wm_window_status = wm_window_status
 
         self.prefs = prefs
+        self.time_command = self.set_get_current_time_command()
 
         self.border_width = 1
         self.height = 20
@@ -158,31 +161,52 @@ class Deskbar(object):
         self.padding_between = 20
         self.padding_trailing = 10
 
-        self.refresh_rate = 5
-
         self.deskbar = None
         self.deskbar_gc = None
 
         self.deskbar_items = {
-            "active_window_title": DeskbarItem("Window Title", text="BiscuitWM"),
-            "memory_usage": DeskbarItem("Memory Usage", interval=10, function=self.set_memory_usage),
-            "timestamp": DeskbarItem("Time", interval=1, function=self.set_timestamp)
+            "leading": {
+                "active_window_title": DeskbarItem("Window Title", text="BiscuitWM"),
+            },
+            "trailing": {
+                "memory_usage": DeskbarItem("Memory Usage", interval=10, function=self.set_memory_usage),
+                "timestamp": DeskbarItem(
+                    "Time",
+                    interval=1 if self.prefs.deskbar["clock"]["show_seconds"] == 1 else 30,
+                    function=self.set_timestamp
+                ),
+            },
         }
         self.deskbar_update_rt = RepeatedTimer(1, self.update)
 
     def set_active_window_title(self, window_title):
         if window_title is None or len(window_title) == 0:
             window_title = "BiscuitWM"
-        self.deskbar_items["active_window_title"].text = window_title
-        self.deskbar_items["active_window_title"].width = self.get_string_physical_width(window_title)
+        self.deskbar_items["leading"]["active_window_title"].text = window_title
+        self.deskbar_items["leading"]["active_window_title"].width = self.get_string_physical_width(window_title)
 
     def set_memory_usage(self):
-        self.deskbar_items["memory_usage"].text = "MEM: " + self.get_memory_usage() + "%"
-        self.deskbar_items["memory_usage"].width = self.get_string_physical_width(self.deskbar_items["memory_usage"].text)
+        self.deskbar_items["trailing"]["memory_usage"].text = "MEM: " + self.get_memory_usage() + "%"
+        self.deskbar_items["trailing"]["memory_usage"].width = self.get_string_physical_width(
+            self.deskbar_items["trailing"]["memory_usage"].text)
 
     def set_timestamp(self):
-        self.deskbar_items["timestamp"].text = self.get_current_time()
-        self.deskbar_items["timestamp"].width = self.get_string_physical_width(self.deskbar_items["timestamp"].text)
+        self.deskbar_items["trailing"]["timestamp"].text = self.get_current_time()
+        self.deskbar_items["trailing"]["timestamp"].width = self.get_string_physical_width(
+            self.deskbar_items["trailing"]["timestamp"].text
+        )
+
+    def set_get_current_time_command(self):
+        command = 'date +"'
+        if self.prefs.deskbar["clock"]["show_day"] == 1:
+            command += '%a '
+        if self.prefs.deskbar["clock"]["show_date"] == 1:
+            command += '%d %b '
+        command += '%I:%M'
+        if self.prefs.deskbar["clock"]["show_seconds"] == 1:
+            command += ':%S'
+        command += ':%P"'
+        return command
 
     def get_string_physical_width(self, text):
         font = self.dpy.open_font(FONT_NAME)
@@ -193,15 +217,19 @@ class Deskbar(object):
         return os.popen("free -m | awk 'NR==2{printf $3*100/$2}'").read()[:-1]
 
     def get_current_time(self):
-        return os.popen('date +"%a %d %b %I:%M:%S %P"').read()[:-1]
+        return os.popen(self.time_command).read()[:-1]
 
     def start_repeated_events(self):
-        for item in self.deskbar_items.values():
+        for item in self.deskbar_items["leading"].values():
+            item.start()
+        for item in self.deskbar_items["trailing"].values():
             item.start()
         self.deskbar_update_rt.start()
 
     def stop_repeated_events(self):
-        for item in self.deskbar_items.values():
+        for item in self.deskbar_items["leading"].values():
+            item.stop()
+        for item in self.deskbar_items["trailing"].values():
             item.stop()
         self.deskbar_update_rt.stop()
 
@@ -220,22 +248,29 @@ class Deskbar(object):
             background_pixel = self.pixel_palette.get_hex_pixel(self.prefs.deskbar["background_color"])
 
         self.deskbar = self.dpy_root.create_window(
-            -1, -1, screen_width, self.height, 1,
+            -self.border_width, -self.border_width, screen_width, self.height, self.border_width,
             self.screen.root_depth,
             background_pixel=background_pixel,
-            event_mask=X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
+            event_mask=X.StructureNotifyMask | X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
         )
-        self.deskbar.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
         self.deskbar_gc = self.deskbar.create_gc(
             font=self.system_font,
             foreground=foreground_pixel,
             background=background_pixel,
         )
-        self.deskbar.map()              # Draw deskbar
-        self.set_timestamp()            # Set initial timestamp
-        self.set_memory_usage()         # Set initial memory usage percentage
-        self.update()                   # Initial update
-        self.start_repeated_events()    # Start deskbar updates
+
+        self.deskbar.change_property(
+            self.wm_window_type,
+            Xatom.ATOM,
+            32,
+            [self.wm_window_types["dock"]],
+            X.PropModeReplace
+        )
+        self.deskbar.map()  # Draw deskbar
+        self.set_timestamp()  # Set initial timestamp
+        self.set_memory_usage()  # Set initial memory usage percentage
+        self.update()  # Initial update
+        self.start_repeated_events()  # Start deskbar updates
 
     def update(self):
         self.deskbar.change_property(
@@ -259,7 +294,7 @@ class Deskbar(object):
             [self.wm_window_status["above"]],
             X.PropModeReplace
         )
-        # self.deskbar.raise_window()
+        self.deskbar.raise_window()
         self.deskbar.clear_area()
 
         # Leading items
@@ -267,24 +302,24 @@ class Deskbar(object):
             self.deskbar_gc,
             self.padding_leading,
             self.text_y_alignment,
-            self.deskbar_items["active_window_title"].text.encode('utf-8')
+            self.deskbar_items["leading"]["active_window_title"].text.encode('utf-8')
         )
 
         # Trailing items
         self.deskbar.draw_text(
             self.deskbar_gc,
             self.display_dimensions.width - (
-                    (self.deskbar_items["memory_usage"].width + self.padding_between)
-                    + (self.deskbar_items["timestamp"].width + self.padding_trailing)
+                    (self.deskbar_items["trailing"]["memory_usage"].width + self.padding_between)
+                    + (self.deskbar_items["trailing"]["timestamp"].width + self.padding_trailing)
             ),
             self.text_y_alignment,
-            self.deskbar_items["memory_usage"].text.encode('utf-8')
+            self.deskbar_items["trailing"]["memory_usage"].text.encode('utf-8')
         )
         self.deskbar.draw_text(
             self.deskbar_gc,
-            self.display_dimensions.width - (self.deskbar_items["timestamp"].width + self.padding_trailing),
+            self.display_dimensions.width - (self.deskbar_items["trailing"]["timestamp"].width + self.padding_trailing),
             self.text_y_alignment,
-            self.deskbar_items["timestamp"].text.encode('utf-8')
+            self.deskbar_items["trailing"]["timestamp"].text.encode('utf-8')
         )
 
 
@@ -292,6 +327,8 @@ class Deskbar(object):
 Thanks to vulkd for creating xround
 https://github.com/vulkd/xround
 '''
+
+
 class DisplayCorners(object):
     def __init__(
             self, dpy, dpy_root, screen, display_dimensions,
@@ -345,7 +382,7 @@ class DisplayCorners(object):
             0, 0, self.display_dimensions.width, self.display_dimensions.height, 0,
             self.screen.root_depth,
             background_pixmap=bg_pm,
-            event_mask=(X.StructureNotifyMask)
+            event_mask=X.StructureNotifyMask
         )
 
         sz = self.bg_size // 2
@@ -354,12 +391,14 @@ class DisplayCorners(object):
         if "ne" in self.corners:
             self.draw_corner(self.display_corners, 0, 90, 64, self.display_dimensions.width - sz, -sz, -sz, sz)
         if "se" in self.corners:
-            self.draw_corner(self.display_corners, 0, -90, 64, self.display_dimensions.width - sz, self.display_dimensions.height - sz, -sz, -sz)
+            self.draw_corner(self.display_corners, 0, -90, 64, self.display_dimensions.width - sz,
+                             self.display_dimensions.height - sz, -sz, -sz)
         if "sw" in self.corners:
             self.draw_corner(self.display_corners, -5760, -90, 64, -sz, self.display_dimensions.height - sz, sz, -sz)
 
         self.display_corners.shape_select_input(0)
-        self.display_corners.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
+        self.display_corners.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]],
+                                             X.PropModeReplace)
         self.display_corners.map()
         self.display_corners_update_rt.start()
 
@@ -385,7 +424,9 @@ class DisplayCorners(object):
             [self.wm_window_status["above"]],
             X.PropModeReplace
         )
-        # self.display_corners.raise_window()
+
+    def raise_window(self):
+        self.display_corners.raise_window()
 
     def stop(self):
         self.display_corners_update_rt.stop()
@@ -405,7 +446,13 @@ class Preferences(object):
         self.deskbar = {
             "enabled": 1,
             "background_color": "white",
-            "foreground_color": "black"
+            "foreground_color": "black",
+            "clock": {
+                "enabled": 1,
+                "show_day": 1,
+                "show_date": 1,
+                "show_seconds": 1
+            }
         }
         self.xround = {
             "enabled": 1
@@ -429,7 +476,6 @@ class Preferences(object):
                     self.deskbar = user_prefs["deskbar"]
                     self.xround = user_prefs["xround"]
                     self.appearance = user_prefs["appearance"]
-                    print(self.appearance)
             else:
                 print("Config file not found!")
         else:
@@ -490,7 +536,6 @@ class WindowManager(object):
 
         self.deskbar = None
         self.display_corners = None
-        self.dock_windows = [self.deskbar, self.display_corners]
 
         self.set_cursor(self.dpy_root)
 
@@ -498,7 +543,7 @@ class WindowManager(object):
 
     def get_display_geometry(self):
         return self.dpy_root.get_geometry()
-    
+
     def window_list(self):
         return self.dpy_root.query_tree().children
 
@@ -527,7 +572,8 @@ class WindowManager(object):
         except error.BadWindow or RuntimeError:
             print("Failed to detect if window is dock")
             pass
-        if result is not None and (result.value[0] == self.wm_window_types["menu"] or result.value[0] == self.wm_window_types["splash"]):
+        if result is not None and (
+                result.value[0] == self.wm_window_types["menu"] or result.value[0] == self.wm_window_types["splash"]):
             return True
         return False
 
@@ -616,7 +662,7 @@ class WindowManager(object):
             print("Found window: %s", self.get_window_shortname(window))
         self.managed_windows.append(window)
         self.exposed_windows.append(window)
-        self.window_order = len(self.managed_windows)-1
+        self.window_order = len(self.managed_windows) - 1
 
         window.map()
         mask = X.EnterWindowMask | X.LeaveWindowMask
@@ -630,7 +676,7 @@ class WindowManager(object):
                 print("Unmanaging window: %s", self.get_window_shortname(window))
             if window in self.managed_windows:
                 self.managed_windows.remove(window)
-                self.window_order = len(self.managed_windows)-1
+                self.window_order = len(self.managed_windows) - 1
             if window in self.exposed_windows:
                 self.exposed_windows.remove(window)
 
@@ -645,9 +691,11 @@ class WindowManager(object):
         if not self.is_dock(window):
             if not self.is_managed_window(window):
                 return
-            window.configure(stack_mode=X.Above)
+            window.raise_window()
             self.last_raised_window = window
             self.set_active_window_title(window)
+            if self.deskbar is not None:
+                self.deskbar.update()
 
     def focus_window(self, window):
         if self.is_dock(window) or not self.is_managed_window(window) or not self.is_alive_window(window):
@@ -658,11 +706,11 @@ class WindowManager(object):
     def cycle_windows(self):
         if len(self.managed_windows) > 0:
             self.window_order += 1
-            if self.window_order > len(self.managed_windows)-1:
+            if self.window_order > len(self.managed_windows) - 1:
                 self.window_order = 0
             window = self.managed_windows[self.window_order]
             if self.is_cyclical_window(window) is False:
-                if self.window_order >= len(self.managed_windows)-1:
+                if self.window_order >= len(self.managed_windows) - 1:
                     self.window_order = 0
                 else:
                     self.window_order += 1
@@ -671,11 +719,6 @@ class WindowManager(object):
             self.raise_window(window)
         else:
             self.window_order = -1
-
-    def update_dock_windows(self):
-        for window in self.dock_windows:
-            if window is not None:
-                window.update()
 
     ### WINDOW DECORATION
 
@@ -690,13 +733,13 @@ class WindowManager(object):
                 # Move new window out of the way of the deskbar
                 if self.prefs.placement["auto_window_fit"] == 1:
                     # Resize window to fit the screen
-                    if window_dimensions.width+window_x >= self.display_dimensions.width:
-                        window_width -= window_x*2
-                    if window_dimensions.height+window_y >= self.display_dimensions.height:
-                        window_height -= window_y*2
+                    if window_dimensions.width + window_x >= self.display_dimensions.width:
+                        window_width -= window_x * 2
+                    if window_dimensions.height + window_y >= self.display_dimensions.height:
+                        window_height -= window_y * 2
                 if self.prefs.placement["center_window_placement"] == 1:
-                    window_x = (self.display_dimensions.width - window_width)//2
-                    window_y = (self.display_dimensions.height - window_height)//2
+                    window_x = (self.display_dimensions.width - window_width) // 2
+                    window_y = (self.display_dimensions.height - window_height) // 2
                 window.configure(
                     x=window_x,
                     y=window_y,
@@ -846,17 +889,19 @@ class WindowManager(object):
                 xdiff = ev.root_x - self.start.root_x
                 ydiff = ev.root_y - self.start.root_y
                 self.start.child.configure(
-                    x = self.attr.x + (self.start.detail == 1 and xdiff or 0),
-                    y = self.attr.y + (self.start.detail == 1 and ydiff or 0),
-                    width = max(1, self.attr.width + (self.start.detail == 3 and xdiff or 0)),
-                    height = max(1, self.attr.height + (self.start.detail == 3 and ydiff or 0))
+                    x=self.attr.x + (self.start.detail == 1 and xdiff or 0),
+                    y=self.attr.y + (self.start.detail == 1 and ydiff or 0),
+                    width=max(1, self.attr.width + (self.start.detail == 3 and xdiff or 0)),
+                    height=max(1, self.attr.height + (self.start.detail == 3 and ydiff or 0))
                 )
             elif ev.type == X.ButtonRelease:
                 self.start = None
                 self.attr = None
 
+            if self.display_corners is not None:
+                self.display_corners.raise_window()
             self.dpy.flush()
-    
+
     def main(self):
         # Register keyboard and mouse events
         self.set_key_aliases()

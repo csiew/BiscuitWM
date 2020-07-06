@@ -11,7 +11,13 @@
 	"deskbar": {
 		"enabled": 1,
 		"background_color": "white",
-		"foreground_color": "black"
+		"foreground_color": "black",
+		"clock": {
+			"enabled": 1,
+			"show_day": 1,
+			"show_date": 1,
+			"show_seconds": 1
+		}
 	},
 	"xround": {
 		"enabled": 1
