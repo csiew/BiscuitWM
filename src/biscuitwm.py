@@ -464,6 +464,7 @@ class Preferences(object):
             "background_color": "#D2B48C"
         }
 
+        self.categories = ["dev", "placement", "deskbar", "xround", "appearance"]
         self.read_config(ignore=False)
 
     def read_config(self, ignore=False):
@@ -471,11 +472,16 @@ class Preferences(object):
             if os.path.exists(CONFIG_FILE_PATH):
                 with open(CONFIG_FILE_PATH, "r") as user_prefs:
                     user_prefs = json.load(user_prefs)
-                    self.dev = user_prefs["dev"]
-                    self.placement = user_prefs["placement"]
-                    self.deskbar = user_prefs["deskbar"]
-                    self.xround = user_prefs["xround"]
-                    self.appearance = user_prefs["appearance"]
+                    user_prefs_keys = [*user_prefs.keys()]
+                    if user_prefs_keys.sort() == self.categories.sort():
+                        print("Config file has matching keys")
+                        self.dev = user_prefs["dev"]
+                        self.placement = user_prefs["placement"]
+                        self.deskbar = user_prefs["deskbar"]
+                        self.xround = user_prefs["xround"]
+                        self.appearance = user_prefs["appearance"]
+                    else:
+                        print("Config file does not having matching keys!")
             else:
                 print("Config file not found!")
         else:
