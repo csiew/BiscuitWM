@@ -1,11 +1,25 @@
 {
-	"DEBUG": 1,
-	"AUTO_WINDOW_PLACE": 1,
-	"AUTO_WINDOW_FIT": 1,
-	"AUTO_WINDOW_RAISE": 1,
-	"CENTER_WINDOW_PLACEMENT": 1,
-	"DRAW_DESKBAR": 1,
-	"WINDOW_BORDER_WIDTH": 2,
-	"ACTIVE_WINDOW_BORDER_COLOR": "#A0522D",
-	"INACTIVE_WINDOW_BORDER_COLOR": "#000000"
+	"dev": {
+		"debug": 1
+	},
+	"placement": {
+		"auto_window_placement": 1,
+		"auto_window_fit": 1,
+		"auto_window_raise": 1,
+		"center_window_placement": 1
+	},
+	"deskbar": {
+		"enabled": 1,
+		"background_color": "white",
+		"foreground_color": "black"
+	},
+	"xround": {
+		"enabled": 1
+	},
+	"appearance": {
+		"window_border_width": 2,
+		"active_window_border_color": "blue",
+		"inactive_window_border_color": "lightgray",
+		"background_color": "slategray"
+	}
 }

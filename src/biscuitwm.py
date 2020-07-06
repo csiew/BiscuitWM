@@ -2,6 +2,7 @@
 
 import os
 import sys
+import re
 import json
 import subprocess
 from threading import Timer
@@ -12,7 +13,6 @@ from x11util import load_font
 
 # GLOBAL VARIABLES
 
-ROUNDED_CORNER_HAS_RUN = False
 FONT_NAME = '9x15'
 CONFIG_FILE_PATH = "/etc/biscuitwm/biscuitwm.json"
 
@@ -28,11 +28,27 @@ class PixelPalette(object):
         self.colormap = colormap
         self.hex_map = {
             "red": "#ff0000",
+            "sienna": "#a0522d",
+            "tan": "#d2b48c",
             "green": "#00ff00",
             "blue": "#0000ff",
-            "black": "#000000",
             "white": "#ffffff",
+            "gainsboro": "#dcdcdc",
+            "lightgray": "#d3d3d3",
+            "darkgray": "#a9a9a9",
+            "gray": "#808080",
+            "dimgray": "#696969",
+            "lightslategray": "#778899",
+            "slategray": "#708090",
+            "darkslategray": "#2F4F4F",
+            "black": "#000000"
         }
+
+    def is_color_hex(self, value):
+        match = re.search(r'^#(?:[0-9a-fA-F]{3}){1,2}$', value)
+        if match is True:
+            return True
+        return False
 
     def get_named_pixel(self, color_name):
         if color_name in self.hex_map.keys():
@@ -40,7 +56,7 @@ class PixelPalette(object):
         else:
             return self.colormap.alloc_named_color(self.hex_map["white"]).pixel
 
-    def get_custom_hex_pixel(self, hex_name):
+    def get_hex_pixel(self, hex_name):
         try:
             return self.colormap.alloc_named_color(hex_name).pixel
         except:
@@ -85,7 +101,7 @@ class DeskbarItem(object):
     def __init__(self, name, text="", width=0, interval=None, function=None):
         self.name = name
         self.text = text
-        self.width = 0
+        self.width = width
         self.interval = interval
         self.function = function
         if interval is not None and function is not None:
@@ -117,7 +133,8 @@ class DeskbarItem(object):
 class Deskbar(object):
     def __init__(
             self, dpy, dpy_root, screen, display_dimensions,
-            wm_window_type, wm_window_types, wm_state, wm_window_status
+            wm_window_type, wm_window_types, wm_state, wm_window_status,
+            prefs
     ):
         self.dpy = dpy
         self.dpy_root = dpy_root
@@ -131,6 +148,8 @@ class Deskbar(object):
         self.wm_window_types = wm_window_types
         self.wm_state = wm_state
         self.wm_window_status = wm_window_status
+
+        self.prefs = prefs
 
         self.border_width = 1
         self.height = 20
@@ -152,6 +171,8 @@ class Deskbar(object):
         self.deskbar_update_rt = RepeatedTimer(1, self.update)
 
     def set_active_window_title(self, window_title):
+        if window_title is None or len(window_title) == 0:
+            window_title = "BiscuitWM"
         self.deskbar_items["active_window_title"].text = window_title
         self.deskbar_items["active_window_title"].width = self.get_string_physical_width(window_title)
 
@@ -172,7 +193,7 @@ class Deskbar(object):
         return os.popen("free -m | awk 'NR==2{printf $3*100/$2}'").read()[:-1]
 
     def get_current_time(self):
-        return os.popen('date +"%I:%M:%S %P"').read()[:-1]
+        return os.popen('date +"%a %d %b %I:%M:%S %P"').read()[:-1]
 
     def start_repeated_events(self):
         for item in self.deskbar_items.values():
@@ -186,8 +207,18 @@ class Deskbar(object):
 
     def draw(self):
         screen_width, screen_height = self.display_dimensions.width, self.display_dimensions.height
-        foreground_pixel = self.pixel_palette.get_named_pixel("black")
+
         background_pixel = self.pixel_palette.get_named_pixel("white")
+        foreground_pixel = self.pixel_palette.get_named_pixel("black")
+        if self.prefs.deskbar["foreground_color"] in self.pixel_palette.hex_map.keys():
+            foreground_pixel = self.pixel_palette.get_named_pixel(self.prefs.deskbar["foreground_color"])
+        elif self.pixel_palette.is_color_hex(self.prefs.deskbar["foreground_color"]) is True:
+            foreground_pixel = self.pixel_palette.get_hex_pixel(self.prefs.deskbar["foreground_color"])
+        if self.prefs.deskbar["background_color"] in self.pixel_palette.hex_map.keys():
+            background_pixel = self.pixel_palette.get_named_pixel(self.prefs.deskbar["background_color"])
+        elif self.pixel_palette.is_color_hex(self.prefs.deskbar["background_color"]) is True:
+            background_pixel = self.pixel_palette.get_hex_pixel(self.prefs.deskbar["background_color"])
+
         self.deskbar = self.dpy_root.create_window(
             -1, -1, screen_width, self.height, 1,
             self.screen.root_depth,
@@ -207,10 +238,28 @@ class Deskbar(object):
         self.start_repeated_events()    # Start deskbar updates
 
     def update(self):
-        self.deskbar.change_property(self.wm_state, Xatom.ATOM, 32, [self.wm_window_status["desktop"], 1, 0, 0, 0], X.PropModeReplace)
-        self.deskbar.change_property(self.wm_state, Xatom.ATOM, 32, [1, self.wm_window_status["skip_taskbar"], 0, 1, 0], X.PropModeReplace)
-        self.deskbar.change_property(self.wm_state, Xatom.ATOM, 32, [1, self.wm_window_status["above"], 0, 1, 0], X.PropModeReplace)
-        self.deskbar.raise_window()
+        self.deskbar.change_property(
+            self.wm_state,
+            Xatom.ATOM,
+            32,
+            [self.wm_window_status["desktop"]],
+            X.PropModeReplace
+        )
+        self.deskbar.change_property(
+            self.wm_state,
+            Xatom.ATOM,
+            32,
+            [self.wm_window_status["skip_taskbar"]],
+            X.PropModeReplace
+        )
+        self.deskbar.change_property(
+            self.wm_state,
+            Xatom.ATOM,
+            32,
+            [self.wm_window_status["above"]],
+            X.PropModeReplace
+        )
+        # self.deskbar.raise_window()
         self.deskbar.clear_area()
 
         # Leading items
@@ -239,51 +288,148 @@ class Deskbar(object):
         )
 
 
-class Preferences(object):
+'''
+Thanks to vulkd for creating xround
+https://github.com/vulkd/xround
+'''
+class DisplayCorners(object):
     def __init__(
-            self,
-            DEBUG=True,
-            AUTO_WINDOW_PLACE=True,
-            AUTO_WINDOW_FIT=True,
-            AUTO_WINDOW_RAISE=True,
-            CENTER_WINDOW_PLACEMENT=True,
-            DRAW_DESKBAR=True,
-            WINDOW_BORDER_WIDTH=2,
-            ACTIVE_WINDOW_BORDER_COLOR="#A0522D",
-            INACTIVE_WINDOW_BORDER_COLOR="#000000"
-        ):
-        self.DEBUG = DEBUG
-        self.AUTO_WINDOW_PLACE = AUTO_WINDOW_PLACE
-        self.AUTO_WINDOW_FIT = AUTO_WINDOW_FIT
-        self.AUTO_WINDOW_RAISE = AUTO_WINDOW_RAISE
-        self.CENTER_WINDOW_PLACEMENT = CENTER_WINDOW_PLACEMENT
-        self.DRAW_DESKBAR = DRAW_DESKBAR
-        self.WINDOW_BORDER_WIDTH = WINDOW_BORDER_WIDTH
-        self.ACTIVE_WINDOW_BORDER_COLOR = ACTIVE_WINDOW_BORDER_COLOR
-        self.INACTIVE_WINDOW_BORDER_COLOR = INACTIVE_WINDOW_BORDER_COLOR
+            self, dpy, dpy_root, screen, display_dimensions,
+            wm_window_type, wm_window_types, wm_state, wm_window_status
+    ):
+        self.dpy = dpy
+        self.dpy_root = dpy_root
+        self.screen = screen
+        self.colormap = self.screen.default_colormap
+        self.pixel_palette = PixelPalette(self.colormap)
+        self.system_font = load_font(self.dpy, FONT_NAME)
+        self.display_dimensions = display_dimensions
 
-        self.read_config(ignore=True)
+        self.wm_window_type = wm_window_type
+        self.wm_window_types = wm_window_types
+        self.wm_state = wm_state
+        self.wm_window_status = wm_window_status
+
+        self.bg_size = 16
+        self.corners = ['nw', 'ne', 'se', 'sw']
+
+        self.display_corners = None
+        self.display_corners_update_rt = RepeatedTimer(1, self.update)
+
+        self.has_run = False
+
+    def draw_corner_pixmap(self, window, arc_start, arc_one, arc_two, pos_in_x=0, pos_in_y=0):
+        corner_pm = window.create_pixmap(self.bg_size, self.bg_size, 1)
+        corner_gc = corner_pm.create_gc(foreground=1, background=1)
+        corner_pm.fill_rectangle(corner_gc, 0, 0, self.bg_size, self.bg_size)
+        corner_gc.change(foreground=0)
+        corner_pm.fill_arc(corner_gc, pos_in_x, pos_in_y, self.bg_size, self.bg_size, arc_start, arc_one * arc_two)
+        return corner_pm
+
+    def draw_corner(self, window, arc_start, arc_one, arc_two, pos_x, pos_y, pos_in_x=0, pos_in_y=0):
+        corner_pixmap = self.draw_corner_pixmap(window, arc_start, arc_one, arc_two, pos_in_x, pos_in_y)
+
+        if not self.has_run:
+            window.shape_mask(shape.SO.Set, shape.SK.Bounding, pos_x, pos_y, corner_pixmap)
+            self.has_run = True
+        else:
+            window.shape_mask(shape.SO.Union, shape.SK.Bounding, pos_x, pos_y, corner_pixmap)
+        return
+
+    def draw(self):
+        bg_pm = self.dpy_root.create_pixmap(self.bg_size, self.bg_size, self.screen.root_depth)
+        bg_gc = self.dpy_root.create_gc(foreground=self.screen.black_pixel, background=self.screen.black_pixel)
+        bg_pm.fill_rectangle(bg_gc, 0, 0, self.bg_size, self.bg_size)
+
+        self.display_corners = self.dpy_root.create_window(
+            0, 0, self.display_dimensions.width, self.display_dimensions.height, 0,
+            self.screen.root_depth,
+            background_pixmap=bg_pm,
+            event_mask=(X.StructureNotifyMask)
+        )
+
+        sz = self.bg_size // 2
+        if "nw" in self.corners:  # Check for the co-ord in corners array (that can be changed by user)
+            self.draw_corner(self.display_corners, 11520, -90, 64, -sz, -sz, sz, sz)
+        if "ne" in self.corners:
+            self.draw_corner(self.display_corners, 0, 90, 64, self.display_dimensions.width - sz, -sz, -sz, sz)
+        if "se" in self.corners:
+            self.draw_corner(self.display_corners, 0, -90, 64, self.display_dimensions.width - sz, self.display_dimensions.height - sz, -sz, -sz)
+        if "sw" in self.corners:
+            self.draw_corner(self.display_corners, -5760, -90, 64, -sz, self.display_dimensions.height - sz, sz, -sz)
+
+        self.display_corners.shape_select_input(0)
+        self.display_corners.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
+        self.display_corners.map()
+        self.display_corners_update_rt.start()
+
+    def update(self):
+        self.display_corners.change_property(
+            self.wm_state,
+            Xatom.ATOM,
+            32,
+            [self.wm_window_status["desktop"]],
+            X.PropModeReplace
+        )
+        self.display_corners.change_property(
+            self.wm_state,
+            Xatom.ATOM,
+            32,
+            [self.wm_window_status["skip_taskbar"]],
+            X.PropModeReplace
+        )
+        self.display_corners.change_property(
+            self.wm_state,
+            Xatom.ATOM,
+            32,
+            [self.wm_window_status["above"]],
+            X.PropModeReplace
+        )
+        # self.display_corners.raise_window()
+
+    def stop(self):
+        self.display_corners_update_rt.stop()
+
+
+class Preferences(object):
+    def __init__(self):
+        self.dev = {
+            "debug": 1
+        }
+        self.placement = {
+            "auto_window_placement": 1,
+            "auto_window_fit": 1,
+            "auto_window_raise": 1,
+            "center_window_placement": 1
+        }
+        self.deskbar = {
+            "enabled": 1,
+            "background_color": "white",
+            "foreground_color": "black"
+        }
+        self.xround = {
+            "enabled": 1
+        }
+        self.appearance = {
+            "window_border_width": 2,
+            "active_window_border_color": "sienna",
+            "inactive_window_border_color": "black",
+            "background_color": "#D2B48C"
+        }
+
+        self.read_config(ignore=False)
 
     def read_config(self, ignore=False):
-        def int_to_bool(value):
-            if value == 1:
-                return True
-            else:
-                return False
-
         if ignore is False:
             if os.path.exists(CONFIG_FILE_PATH):
                 with open(CONFIG_FILE_PATH, "r") as user_prefs:
                     user_prefs = json.load(user_prefs)
-                    self.DEBUG = int_to_bool(user_prefs["DEBUG"])
-                    self.AUTO_WINDOW_PLACE = int_to_bool(user_prefs["AUTO_WINDOW_PLACE"])
-                    self.AUTO_WINDOW_FIT = int_to_bool(user_prefs["AUTO_WINDOW_FIT"])
-                    self.AUTO_WINDOW_RAISE = int_to_bool(user_prefs["AUTO_WINDOW_RAISE"])
-                    self.CENTER_WINDOW_PLACEMENT = int_to_bool(user_prefs["CENTER_WINDOW_PLACEMENT"])
-                    self.DRAW_DESKBAR = int_to_bool(user_prefs["DRAW_DESKBAR"])
-                    self.WINDOW_BORDER_WIDTH = user_prefs["WINDOW_BORDER_WIDTH"]
-                    self.ACTIVE_WINDOW_BORDER_COLOR = user_prefs["ACTIVE_WINDOW_BORDER_COLOR"]
-                    self.INACTIVE_WINDOW_BORDER_COLOR = user_prefs["INACTIVE_WINDOW_BORDER_COLOR"]
+                    self.dev = user_prefs["dev"]
+                    self.placement = user_prefs["placement"]
+                    self.deskbar = user_prefs["deskbar"]
+                    self.xround = user_prefs["xround"]
+                    self.appearance = user_prefs["appearance"]
+                    print(self.appearance)
             else:
                 print("Config file not found!")
         else:
@@ -342,12 +488,9 @@ class WindowManager(object):
             self.wm_window_types["splash"]
         ]
 
-        self.deskbar = Deskbar(
-            self.dpy, self.dpy_root, self.screen, self.display_dimensions,
-            self.wm_window_type, self.wm_window_types,
-            self.wm_state, self.wm_window_status
-        )
+        self.deskbar = None
         self.display_corners = None
+        self.dock_windows = [self.deskbar, self.display_corners]
 
         self.set_cursor(self.dpy_root)
 
@@ -454,7 +597,7 @@ class WindowManager(object):
             self.active_window_title = self.session_info.session_name
         else:
             self.active_window_title = window_title
-        if self.prefs.DRAW_DESKBAR is True:
+        if self.prefs.deskbar["enabled"] == 1:
             self.deskbar.set_active_window_title(self.active_window_title)
 
     ### WINDOW CONTROLS
@@ -469,7 +612,7 @@ class WindowManager(object):
         if self.is_managed_window(window):
             return
 
-        if self.prefs.DEBUG is True:
+        if self.prefs.dev["debug"] == 1:
             print("Found window: %s", self.get_window_shortname(window))
         self.managed_windows.append(window)
         self.exposed_windows.append(window)
@@ -483,7 +626,7 @@ class WindowManager(object):
 
     def unmanage_window(self, window):
         if self.is_managed_window(window):
-            if self.prefs.DEBUG is True:
+            if self.prefs.dev["debug"] == 1:
                 print("Unmanaging window: %s", self.get_window_shortname(window))
             if window in self.managed_windows:
                 self.managed_windows.remove(window)
@@ -492,7 +635,7 @@ class WindowManager(object):
                 self.exposed_windows.remove(window)
 
     def destroy_window(self, window):
-        if self.prefs.DEBUG is True:
+        if self.prefs.dev["debug"] == 1:
             print("Destroy window: %s", self.get_window_shortname(window))
         if self.is_managed_window(window):
             window.destroy()
@@ -529,6 +672,11 @@ class WindowManager(object):
         else:
             self.window_order = -1
 
+    def update_dock_windows(self):
+        for window in self.dock_windows:
+            if window is not None:
+                window.update()
+
     ### WINDOW DECORATION
 
     def decorate_window(self, window):
@@ -538,15 +686,15 @@ class WindowManager(object):
         window_x = 5
         window_y = 25
         if self.is_dock(window) is False:
-            if self.prefs.AUTO_WINDOW_PLACE is True:
+            if self.prefs.placement["auto_window_placement"] == 1:
                 # Move new window out of the way of the deskbar
-                if self.prefs.AUTO_WINDOW_FIT is True:
+                if self.prefs.placement["auto_window_fit"] == 1:
                     # Resize window to fit the screen
                     if window_dimensions.width+window_x >= self.display_dimensions.width:
                         window_width -= window_x*2
                     if window_dimensions.height+window_y >= self.display_dimensions.height:
                         window_height -= window_y*2
-                if self.prefs.CENTER_WINDOW_PLACEMENT is True:
+                if self.prefs.placement["center_window_placement"] == 1:
                     window_x = (self.display_dimensions.width - window_width)//2
                     window_y = (self.display_dimensions.height - window_height)//2
                 window.configure(
@@ -559,14 +707,22 @@ class WindowManager(object):
 
     def set_unfocus_window_border(self, window):
         if not self.is_dock(window):
-            border_color = self.pixel_palette.get_custom_hex_pixel(self.prefs.INACTIVE_WINDOW_BORDER_COLOR)
-            window.configure(border_width=self.prefs.WINDOW_BORDER_WIDTH)
+            border_color = self.pixel_palette.get_named_pixel("lightgray")
+            if self.prefs.appearance["inactive_window_border_color"] in self.pixel_palette.hex_map.keys():
+                border_color = self.pixel_palette.get_named_pixel(self.prefs.appearance["inactive_window_border_color"])
+            elif self.pixel_palette.is_color_hex(self.prefs.appearance["inactive_window_border_color"]) is True:
+                border_color = self.pixel_palette.get_hex_pixel(self.prefs.appearance["inactive_window_border_color"])
+            window.configure(border_width=self.prefs.appearance["window_border_width"])
             window.change_attributes(None, border_pixel=border_color)
 
     def set_focus_window_border(self, window):
         if not self.is_dock(window):
-            border_color = self.pixel_palette.get_custom_hex_pixel(self.prefs.ACTIVE_WINDOW_BORDER_COLOR)
-            window.configure(border_width=self.prefs.WINDOW_BORDER_WIDTH)
+            border_color = self.pixel_palette.get_named_pixel("sienna")
+            if self.prefs.appearance["active_window_border_color"] in self.pixel_palette.hex_map.keys():
+                border_color = self.pixel_palette.get_named_pixel(self.prefs.appearance["active_window_border_color"])
+            elif self.pixel_palette.is_color_hex(self.prefs.appearance["active_window_border_color"]) is True:
+                border_color = self.pixel_palette.get_hex_pixel(self.prefs.appearance["active_window_border_color"])
+            window.configure(border_width=self.prefs.appearance["window_border_width"])
             window.change_attributes(None, border_pixel=border_color)
 
     def set_cursor(self, window):
@@ -580,60 +736,13 @@ class WindowManager(object):
         )
         window.change_attributes(cursor=cursor)
 
-    def draw_display_corners(self):
-        bg_size = 16  # Default corner size
-        corners = ['nw', 'ne', 'se', 'sw']  # Default corners to draw
-        bg_pm = self.dpy_root.create_pixmap(bg_size, bg_size, self.screen.root_depth)
-        bg_gc = self.dpy_root.create_gc(foreground=self.screen.black_pixel, background=self.screen.black_pixel)
-        bg_pm.fill_rectangle(bg_gc, 0, 0, bg_size, bg_size)
-
-        self.display_corners = self.dpy_root.create_window(
-            0, 0, self.display_dimensions.width, self.display_dimensions.height, 0,
-            self.screen.root_depth,
-            background_pixmap=bg_pm,
-            event_mask=(X.StructureNotifyMask)
-        )
-
-        def draw_corner(window, arc_start, arc_one, arc_two, pos_x, pos_y, pos_in_x=0, pos_in_y=0):
-            global ROUNDED_CORNER_HAS_RUN
-
-            def draw_corner_pixmap(window, arc_start, arc_one, arc_two, pos_in_x=0, pos_in_y=0):
-                corner_pm = window.create_pixmap(bg_size, bg_size, 1)
-                corner_gc = corner_pm.create_gc(foreground=1, background=1)
-                corner_pm.fill_rectangle(corner_gc, 0, 0, bg_size, bg_size)
-                corner_gc.change(foreground=0)
-                corner_pm.fill_arc(corner_gc, pos_in_x, pos_in_y, bg_size, bg_size, arc_start, arc_one * arc_two)
-                return corner_pm
-
-            corner_pixmap = draw_corner_pixmap(window, arc_start, arc_one, arc_two, pos_in_x, pos_in_y)
-
-            if not ROUNDED_CORNER_HAS_RUN:
-                window.shape_mask(shape.SO.Set, shape.SK.Bounding, pos_x, pos_y, corner_pixmap)
-                ROUNDED_CORNER_HAS_RUN = True
-            else:
-                window.shape_mask(shape.SO.Union, shape.SK.Bounding, pos_x, pos_y, corner_pixmap)
-            return
-
-        sz = bg_size // 2
-        if "nw" in corners:  # Check for the co-ord in corners array (that can be changed by user)
-            draw_corner(self.display_corners, 11520, -90, 64, -sz, -sz, sz, sz)
-        if "ne" in corners:
-            draw_corner(self.display_corners, 0, 90, 64, self.display_dimensions.width - sz, -sz, -sz, sz)
-        if "se" in corners:
-            draw_corner(self.display_corners, 0, -90, 64, self.display_dimensions.width - sz, self.display_dimensions.height - sz, -sz, -sz)
-        if "sw" in corners:
-            draw_corner(self.display_corners, -5760, -90, 64, -sz, self.display_dimensions.height - sz, sz, -sz)
-
-        self.display_corners.shape_select_input(0)
-        self.display_corners.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]], X.PropModeReplace)
-        self.refresh_dock_windows()
-        self.display_corners.map()
-
-    def refresh_dock_windows(self):
-        self.display_corners.change_property(self.wm_state, Xatom.ATOM, 32, [self.wm_window_status["desktop"], 1, 0, 0, 0], X.PropModeReplace)
-        self.display_corners.change_property(self.wm_state, Xatom.ATOM, 32, [1, self.wm_window_status["skip_taskbar"], 0, 1, 0], X.PropModeReplace)
-        self.display_corners.change_property(self.wm_state, Xatom.ATOM, 32, [1, self.wm_window_status["above"], 0, 1, 0], X.PropModeReplace)
-        self.display_corners.raise_window()
+    def set_background_color(self):
+        background_color = self.pixel_palette.hex_map["slategray"]
+        if self.pixel_palette.is_color_hex(self.prefs.appearance["background_color"]) is True:
+            background_color = self.prefs.appearance["background_color"]
+        elif self.prefs.appearance["background_color"] in self.pixel_palette.hex_map.keys():
+            background_color = self.pixel_palette.hex_map[self.prefs.appearance["background_color"]]
+        os.system('xsetroot -solid "' + background_color + '"')
 
     # DEBUG
 
@@ -700,7 +809,7 @@ class WindowManager(object):
     def loop(self):
         while 1:
             ev = self.dpy.next_event()
-            if self.prefs.DEBUG is True:
+            if self.prefs.dev["debug"] == 1:
                 self.print_event_type(ev)
 
             if ev.type in [X.EnterNotify, X.LeaveNotify, X.MapNotify]:
@@ -722,7 +831,7 @@ class WindowManager(object):
                     pass
             elif ev.type == X.EnterNotify:
                 self.focus_window(ev.window)
-                if self.prefs.AUTO_WINDOW_RAISE is True:
+                if self.prefs.placement["auto_window_raise"] == 1:
                     self.raise_window(ev.window)
             elif ev.type == X.LeaveNotify:
                 self.set_unfocus_window_border(ev.window)
@@ -746,7 +855,6 @@ class WindowManager(object):
                 self.start = None
                 self.attr = None
 
-            self.refresh_dock_windows()
             self.dpy.flush()
     
     def main(self):
@@ -781,25 +889,43 @@ class WindowManager(object):
         )
         self.dpy_root.change_attributes(event_mask=X.SubstructureNotifyMask)
 
+        self.set_background_color()
+
         children = self.window_list()
         for child in children:
             if child.get_attributes().map_state:
                 self.manage_window(child)
 
         # Draw deskbar
-        if self.prefs.DRAW_DESKBAR is True:
+        if self.prefs.deskbar["enabled"] == 1:
+            self.deskbar = Deskbar(
+                self.dpy, self.dpy_root, self.screen, self.display_dimensions,
+                self.wm_window_type, self.wm_window_types,
+                self.wm_state, self.wm_window_status,
+                self.prefs
+            )
             self.deskbar.draw()
 
         # Draw display corners
-        self.draw_display_corners()
+        if self.prefs.xround["enabled"] == 1:
+            self.display_corners = DisplayCorners(
+                self.dpy, self.dpy_root, self.screen, self.display_dimensions,
+                self.wm_window_type, self.wm_window_types,
+                self.wm_state, self.wm_window_status
+            )
+            self.display_corners.draw()
 
         try:
             self.loop()
         except KeyboardInterrupt or error.ConnectionClosedError:
+            self.end_session()
             sys.exit(0)
 
     def end_session(self):
-        self.deskbar.stop_repeated_events()
+        if self.prefs.deskbar["enabled"] == 1:
+            self.deskbar.stop_repeated_events()
+        if self.prefs.xround["enabled"] == 1:
+            self.display_corners.stop()
         self.dpy.close()
         sys.exit(0)
 

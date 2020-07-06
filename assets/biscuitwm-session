@@ -1,5 +1,5 @@
 #!/bin/sh
-xsetroot -solid "#D2B48C"
+# xsetroot -solid "#D2B48C"
 # xrdb -load $HOME/.Xdefaults
 # xterm &
 exec /usr/bin/biscuitwm
