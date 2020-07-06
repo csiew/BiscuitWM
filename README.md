@@ -38,7 +38,7 @@ Note that whichever window your cursor is hovering over will be the window with 
 - `Alt + Esc`: Exit BiscuitWM session
 
 ### Configuration
-BiscuitWM can read a JSON file (stored at `/etc/biscuitwm/biscuitwm.json`) for options such as debug output, window placement, window decorations, etc. BiscuitWM currently does not read from the file by default (you can enable this by changing the `ignore` parameter for the `self.read_config` call to `False`) due to how a lot of things are being changed rapidly.
+BiscuitWM can read a JSON file (stored at `/etc/biscuitwm/biscuitwm.json`) for options such as debug output, window placement, window decorations, etc.
 
 ## Emulation guide
 Instead of constantly logging off, switching the Xsession, then logging in again to test, it will be easier to just run an embedded Xsession within your current session. To do this, install the Xephyr package (`xserver-xephyr`).
