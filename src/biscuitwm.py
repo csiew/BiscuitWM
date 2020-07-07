@@ -136,7 +136,7 @@ class Deskbar(object):
     def __init__(
             self, dpy, dpy_root, screen, display_dimensions,
             wm_window_type, wm_window_types, wm_state, wm_window_status,
-            prefs
+            prefs, session_info
     ):
         self.dpy = dpy
         self.dpy_root = dpy_root
@@ -152,6 +152,7 @@ class Deskbar(object):
         self.wm_window_status = wm_window_status
 
         self.prefs = prefs
+        self.session_info = session_info
         self.time_command = self.set_get_current_time_command()
 
         self.border_width = 1
@@ -166,10 +167,17 @@ class Deskbar(object):
 
         self.deskbar_items = {
             "leading": {
-                "active_window_title": DeskbarItem("Window Title", text="BiscuitWM"),
+                "active_window_title": DeskbarItem(
+                    "Window Title",
+                    text=self.session_info.session_name
+                ),
             },
             "trailing": {
-                "memory_usage": DeskbarItem("Memory Usage", interval=10, function=self.set_memory_usage),
+                "memory_usage": DeskbarItem(
+                    "Memory Usage",
+                    interval=10,
+                    function=self.set_memory_usage
+                ),
                 "timestamp": DeskbarItem(
                     "Time",
                     interval=1 if self.prefs.deskbar["clock"]["show_seconds"] == 1 else 30,
@@ -181,7 +189,7 @@ class Deskbar(object):
 
     def set_active_window_title(self, window_title):
         if window_title is None or len(window_title) == 0:
-            window_title = "BiscuitWM"
+            window_title = self.session_info.session_name
         self.deskbar_items["leading"]["active_window_title"].text = window_title
         self.deskbar_items["leading"]["active_window_title"].width = self.get_string_physical_width(window_title)
 
@@ -544,6 +552,9 @@ class WindowManager(object):
         self.deskbar = None
         self.display_corners = None
 
+        self.update_active_window_title_rt = RepeatedTimer(interval=1, function=self.update_active_window_title)
+        self.update_active_window_title_rt.stop()
+
         self.set_cursor(self.dpy_root)
 
     ### QUERY METHODS
@@ -637,11 +648,11 @@ class WindowManager(object):
     def get_window_title(self, window):
         result = None
         try:
-            result = window.get_wm_icon_name()
+            result = window.get_wm_name()
         except:
             pass
         if result is None:
-            return "BiscuitWM"
+            return self.session_info.session_name
         return result
 
     def set_active_window_title(self, window):
@@ -652,6 +663,10 @@ class WindowManager(object):
             self.active_window_title = window_title
         if self.prefs.deskbar["enabled"] == 1:
             self.deskbar.set_active_window_title(self.active_window_title)
+
+    def update_active_window_title(self):
+        if self.last_raised_window is not None:
+            self.set_active_window_title(self.last_raised_window)
 
     ### WINDOW CONTROLS
 
@@ -737,24 +752,29 @@ class WindowManager(object):
                 window_x, window_y, window_width, window_height = None, None, None, None
                 if position == "maximize":
                     window_width = self.display_dimensions.width
-                    window_height = self.display_dimensions.height + (0 if self.deskbar is None else self.deskbar.height)
+                    window_height = self.display_dimensions.height + (
+                        0 if self.deskbar is None else self.deskbar.height)
                     window_x = -self.prefs.appearance["window_border_width"]
                     window_y = -self.prefs.appearance["window_border_width"] if self.deskbar is None else (
-                            -self.prefs.appearance["window_border_width"] + self.deskbar.height + self.deskbar.border_width
+                            -self.prefs.appearance[
+                                "window_border_width"] + self.deskbar.height + self.deskbar.border_width
                     )
                 elif position == "left" or position == "right":
-                    window_width = self.display_dimensions.width//2
-                    window_height = self.display_dimensions.height + (0 if self.deskbar is None else self.deskbar.height)
+                    window_width = self.display_dimensions.width // 2
+                    window_height = self.display_dimensions.height + (
+                        0 if self.deskbar is None else self.deskbar.height)
                     if position == "left":
                         window_x = -self.prefs.appearance["window_border_width"]
                     elif position == "right":
                         window_x = window_width - self.prefs.appearance["window_border_width"]
                     window_y = -self.prefs.appearance["window_border_width"] if self.deskbar is None else (
-                            -self.prefs.appearance["window_border_width"] + self.deskbar.height + self.deskbar.border_width
+                            -self.prefs.appearance[
+                                "window_border_width"] + self.deskbar.height + self.deskbar.border_width
                     )
                 elif position == "top" or position == "bottom":
                     window_width = self.display_dimensions.width
-                    window_height = (self.display_dimensions.height + (0 if self.deskbar is None else self.deskbar.height))//2
+                    window_height = (self.display_dimensions.height + (
+                        0 if self.deskbar is None else self.deskbar.height)) // 2
                     if position == "top":
                         window_y = -self.prefs.appearance["window_border_width"]
                     elif position == "bottom":
@@ -1007,7 +1027,7 @@ class WindowManager(object):
                 self.dpy, self.dpy_root, self.screen, self.display_dimensions,
                 self.wm_window_type, self.wm_window_types,
                 self.wm_state, self.wm_window_status,
-                self.prefs
+                self.prefs, self.session_info
             )
             self.deskbar.draw()
 
@@ -1020,6 +1040,8 @@ class WindowManager(object):
             )
             self.display_corners.draw()
 
+        self.update_active_window_title_rt.start()
+
         try:
             self.loop()
         except KeyboardInterrupt or error.ConnectionClosedError:
@@ -1027,6 +1049,7 @@ class WindowManager(object):
             sys.exit(0)
 
     def end_session(self):
+        self.update_active_window_title_rt.stop()
         if self.prefs.deskbar["enabled"] == 1:
             self.deskbar.stop_repeated_events()
         if self.prefs.xround["enabled"] == 1:
