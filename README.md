@@ -32,9 +32,14 @@ Note that whichever window your cursor is hovering over will be the window with 
 ### Keyboard shortcuts
 - `Alt + Left Click` and drag: Move window
 - `Alt + Right Click` and drag: Resize window
-- `Alt + X`: Launch a new terminal window
+- `Alt + M`: Maximize currently-focused window
+- `Alt + [`: Fill left-side of the screen with currently-focused window
+- `Alt + ]`: Fill right-side of the screen with currently-focused window
+- `Alt + \`: Fill top of the screen with currently-focused window
+- `Alt + /`: Fill bottom of the screen with currently-focused window
 - `Alt + Q`: Close the currently-focused window
 - `Alt + Tab`: Cycle through all windows
+- `Alt + X`: Launch a new terminal window
 - `Alt + Esc`: Exit BiscuitWM session
 
 ### Configuration

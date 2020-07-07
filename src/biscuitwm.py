@@ -499,6 +499,7 @@ class WindowManager(object):
         self.pixel_palette = PixelPalette(self.colormap)
 
         self.display_dimensions = self.get_display_geometry()
+        self.half_size_window_positions = ["left", "right", "top", "bottom"]
 
         self.managed_windows = []
         self.exposed_windows = []
@@ -728,13 +729,63 @@ class WindowManager(object):
 
     ### WINDOW DECORATION
 
+    def maximize_window(self, window):
+        if self.is_dock(window) is False:
+            if self.prefs.dev["debug"] == 1:
+                print("Triggered window maximization")
+            window_width = self.display_dimensions.width
+            window_height = self.display_dimensions.height + (0 if self.deskbar is None else self.deskbar.height)
+            window_x = -self.prefs.appearance["window_border_width"]
+            window_y = -self.prefs.appearance["window_border_width"] if self.deskbar is None else (
+                    -self.prefs.appearance["window_border_width"] + self.deskbar.height + self.deskbar.border_width
+            )
+            window.configure(
+                x=window_x,
+                y=window_y,
+                width=window_width,
+                height=window_height
+            )
+
+    def half_size_window(self, window, position):
+        if self.is_dock(window) is False:
+            if self.prefs.dev["debug"] == 1:
+                print("Triggered window size halving")
+            if position in self.half_size_window_positions:
+                window_x, window_y, window_width, window_height = None, None, None, None
+                if position == "left" or position == "right":
+                    window_width = self.display_dimensions.width//2
+                    window_height = self.display_dimensions.height + (0 if self.deskbar is None else self.deskbar.height)
+                    if position == "left":
+                        window_x = -self.prefs.appearance["window_border_width"]
+                    elif position == "right":
+                        window_x = window_width - self.prefs.appearance["window_border_width"]
+                    window_y = -self.prefs.appearance["window_border_width"] if self.deskbar is None else (
+                            -self.prefs.appearance["window_border_width"] + self.deskbar.height + self.deskbar.border_width
+                    )
+                elif position == "top" or position == "bottom":
+                    window_width = self.display_dimensions.width
+                    window_height = (self.display_dimensions.height + (0 if self.deskbar is None else self.deskbar.height))//2
+                    if position == "top":
+                        window_y = -self.prefs.appearance["window_border_width"]
+                    elif position == "bottom":
+                        window_y = window_height + self.prefs.appearance["window_border_width"]
+                    window_x = -self.prefs.appearance["window_border_width"]
+                window.configure(
+                    x=window_x,
+                    y=window_y,
+                    width=window_width,
+                    height=window_height
+                )
+            else:
+                print("Invalid window position: " + position)
+
     def decorate_window(self, window):
         self.set_cursor(window)
-        window_dimensions = self.get_window_geometry(window)
-        window_width, window_height = window_dimensions.width, window_dimensions.height
-        window_x = 5
-        window_y = 25
         if self.is_dock(window) is False:
+            window_dimensions = self.get_window_geometry(window)
+            window_width, window_height = window_dimensions.width, window_dimensions.height
+            window_x = 5
+            window_y = 25
             if self.prefs.placement["auto_window_placement"] == 1:
                 # Move new window out of the way of the deskbar
                 if self.prefs.placement["auto_window_fit"] == 1:
@@ -832,11 +883,13 @@ class WindowManager(object):
     # EVENT HANDLING
 
     def set_key_aliases(self):
-        self.key_alias["x"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("x"))
-        self.key_alias["q"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("q"))
-        self.key_alias["F1"] = self.dpy.keysym_to_keycode(XK.string_to_keysym("F1"))
-        self.key_alias["Tab"] = self.dpy.keysym_to_keycode(XK.XK_Tab)
-        self.key_alias["Escape"] = self.dpy.keysym_to_keycode(XK.XK_Escape)
+        keystrings = [
+            "x", "q",
+            "m", "bracketleft", "bracketright", "backslash", "slash",
+            "F1", "Tab", "Escape"
+        ]
+        for keystring in keystrings:
+            self.key_alias[keystring] = self.dpy.keysym_to_keycode(XK.string_to_keysym(keystring))
 
     def handle_keypress(self, ev):
         if ev.detail in self.key_alias.values():
@@ -845,6 +898,16 @@ class WindowManager(object):
                 self.start_terminal()
             elif ev.detail == self.key_alias["q"] and ev.child != X.NONE:
                 self.destroy_window(ev.child)
+            elif ev.detail == self.key_alias["m"] and ev.child != X.NONE:
+                self.maximize_window(ev.child)
+            elif ev.detail == self.key_alias["bracketleft"] and ev.child != X.NONE:
+                self.half_size_window(ev.child, "left")
+            elif ev.detail == self.key_alias["bracketright"] and ev.child != X.NONE:
+                self.half_size_window(ev.child, "right")
+            elif ev.detail == self.key_alias["backslash"] and ev.child != X.NONE:
+                self.half_size_window(ev.child, "top")
+            elif ev.detail == self.key_alias["slash"] and ev.child != X.NONE:
+                self.half_size_window(ev.child, "bottom")
             elif ev.detail == self.key_alias["F1"] and ev.child != X.NONE:
                 self.focus_window(ev.window)
                 self.raise_window(ev.window)
