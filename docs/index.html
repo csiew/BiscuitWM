@@ -7,16 +7,30 @@
 	<meta content="biscuitwm, tinywm, xpym, window manager, linux, x11" name="keywords">
 	<link rel="shortcut icon" href="images/logo-inline-32.png">
 	<style>
-		@import url('https://fonts.googleapis.com/css2?family=Balsamiq+Sans:ital,wght@0,400;0,700;1,400;1,700&family=Inconsolata:wght@400;700&display=swap');
+		:root {
+			--BACKGROUND: white;
+			--FOREGROUND: black;
+
+			--FOOTER-FOREGROUND: dimgray;
+
+			--LINK-FOREGROUND: sienna;
+
+			--CODEBLOCK-BACKGROUND: beige;
+			--CODEBLOCK-LEAD-FOREGROUND: sienna;
+
+			--WARNING-BACKGROUND: mistyrose;
+			--WARNING-LEAD-FOREGROUND: crimson;
+		}
 
 		html, body {
 			max-width: 800px;
 			margin: auto;
 			padding: 16px;
 			box-sizing: border-box;
-			background: beige;
-			font-size: 20px;
-			font-family: 'Balsamiq Sans', Helvetica, Arial, sans-serif;
+			background: var(--BACKGROUND);
+			color: var(--FOREGROUND);
+			font-size: 16px;
+			font-family: Helvetica, Arial, sans-serif;
 			line-height: 1.5;
 		}
 		header, footer {
@@ -35,21 +49,25 @@
 		footer {
 			margin-top: 24px;
 			margin-bottom: 64px;
-			color: dimgray;
+			color: var(--FOOTER-FOREGROUND);
 			font-size: 14px;
 		}
 		a {
-			color: sienna;
+			color: var(--LINK-FOREGROUND);
 		}
 		hr {
 			border: none;
-			border-bottom: 1px solid sienna;
+			border-bottom: 1px solid var(--LINK-FOREGROUND);
 		}
-		.quote {
+		.warning {
 			padding: 16px;
-			background: palegoldenrod;
-			border-left: 8px solid sienna;
+			background: var(--WARNING-BACKGROUND);
+			border-left: 8px solid var(--WARNING-LEAD-FOREGROUND);
 			border-radius: 5px;
+		}
+		.warning-lead {
+			color: var(--WARNING-LEAD-FOREGROUND);
+			font-weight: bold;
 		}
 		.copyrights {
 			list-style: none;
@@ -59,9 +77,8 @@
 		.codeblock {
 			display: inline;
 			padding: 4px;
-			font-family: Inconsolata, monospace;
-			font-weight: bold;
-			background: palegoldenrod;
+			font-family: monospace;
+			background: var(--CODEBLOCK-BACKGROUND);
 			border-radius: 5px;
 		}
 		.codeblock-big {
@@ -71,11 +88,11 @@
 			margin-bottom: 32px;
 			padding: 16px;
 			box-sizing: border-box;
-			border-left: 8px solid sienna;
+			border-left: 8px solid var(--CODEBLOCK-LEAD-FOREGROUND);
 		}
 		.img-bordered {
 			box-sizing: border-box;
-			border: 1px solid sienna;
+			border: 1px solid var(--LINK-FOREGROUND);
 			border-radius: 8px;
 		}
 		.float {
@@ -105,8 +122,8 @@
 	<p>
 		The intent of this window manager project is largely to expand my understanding of the X11 libraries via Python. However, it should be good for some basic use cases such as lightweight virtual machines or a Raspberry Pi.
 	</p>
-	<p class="quote">
-		<b style="color: red;">WARNING:</b> This project is still in alpha. It is not recommended to run BiscuitWM on a production machine without using Xephyr to run an embedded X session!
+	<p class="warning">
+		<span class="warning-lead">WARNING:</span> This project is still in alpha. It is not recommended to run BiscuitWM on a production machine without using Xephyr to run an embedded X session!
 	</p>
 	<a href="./images/screenshot3.png"><img class="img-bordered" src="./images/screenshot3.png" width="100%"></a>
 
@@ -123,7 +140,6 @@
 	<ul>
 		<li><span class="codeblock">python3</span></li>
 		<li><span class="codeblock">python3-pip</span></li>
-		<li><span class="codeblock">python3-xlib</span></li>
 	</ul>
 	<p>
 		You also need the following Python libraries:
@@ -138,7 +154,7 @@
 	</p>
 	<div class="codeblock codeblock-big">
 		sudo apt update<br>
-		sudo apt install python3 python3-pip python3-xlib<br><br>
+		sudo apt install python3 python3-pip<br><br>
 		python3 -m pip install python-xlib x11util perlcompat
 	</div>
 	<h3>Download</h3>
@@ -192,7 +208,7 @@
 	</ul>
 	<h3>Configuration file</h3>
 	<p>
-		You can configure BiscuitWM through a JSON file stored in `/etc/biscuitwm`. Some things that could be customised include window placement behaviour, the deskbar (and the clock), rounded desktop corners, and window borders.
+		You can configure BiscuitWM through a JSON file stored in <span class="codeblock">/etc/biscuitwm</span>. Some things that could be customised include window placement behaviour, the deskbar (and the clock), rounded desktop corners, and window borders.
 	</p>
 	<h3>Future changes</h3>
 	<p>

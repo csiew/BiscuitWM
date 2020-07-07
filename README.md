@@ -3,15 +3,15 @@
 
 **BiscuitWM** is an X11 window manager based on the Python version of [TinyWM](https://github.com/mackstann/tinywm) by [Nick Welch](https://github.com/mackstann) and the [xpywm](https://github.com/h-ohsaki/xpywm) window manager by [Hiroyuki Ohsaki](http://www.lsnl.jp/~ohsaki/). The intent of this window manager project is largely to expand my understanding of the X11 libraries via Python.
 
-Development and testing is being done in a Debian 10.4.0 virtual machine.
+Development and testing is being done in a Debian 10.4.0 virtual machine with Python 3.7 as the main Python interpreter.
 
 **WARNING:** This project is still in alpha. It is not recommended to run BiscuitWM on a production machine without using Xephyr to run an embedded X session!
 
 ## Install guide
-Before running BiscuitWM, you must have the `python3-xlib`, `x11util`, and `perlcompat` libraries installed. To do so, use the `pip` Python package manager to install it:
+Before running BiscuitWM, you must have the `python-xlib`, `x11util`, and `perlcompat` libraries installed. To do so, use the `pip` Python package manager to install it:
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip python3-xlib
+sudo apt install python3 python3-pip
 
 python3 -m pip install python-xlib x11util perlcompat
 ```
