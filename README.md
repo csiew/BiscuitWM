@@ -35,6 +35,7 @@ Note that whichever window your cursor is hovering over will be the window with 
 - `Alt + Right Click` and drag: Resize window
 - `Alt + Q`: Close the currently-focused window
 #### Resizing windows
+- `Alt + -`: Move window to center of display
 - `Alt + =`: Maximize currently-focused window
 - `Alt + [`: Fill left-side of the screen with currently-focused window
 - `Alt + ]`: Fill right-side of the screen with currently-focused window

@@ -534,7 +534,14 @@ class WindowManager(object):
         self.pixel_palette = PixelPalette(self.colormap)
 
         self.display_dimensions = self.get_display_geometry()
-        self.window_resize_options = ["maximize", "left", "right", "top", "bottom"]
+        self.window_resize_options = [
+            "center",
+            "maximize",
+            "left",
+            "right",
+            "top",
+            "bottom"
+        ]
 
         self.managed_windows = []
         self.exposed_windows = []
@@ -779,10 +786,15 @@ class WindowManager(object):
     def resize_window(self, window, position):
         if self.is_dock(window) is False:
             if self.prefs.dev["debug"] == 1:
-                print("Triggered window size halving")
+                print("Triggered window resize")
             if position in self.window_resize_options:
                 window_x, window_y, window_width, window_height = None, None, None, None
-                if position == "maximize":
+                if position == "center":
+                    window_dimensions = self.get_window_geometry(window)
+                    window_width, window_height = window_dimensions.width, window_dimensions.height
+                    window_x = (self.display_dimensions.width - window_width) // 2
+                    window_y = (self.display_dimensions.height - window_height) // 2
+                elif position == "maximize":
                     window_width = self.display_dimensions.width
                     window_height = self.display_dimensions.height + (
                         0 if self.deskbar is None else self.deskbar.height)
@@ -926,7 +938,7 @@ class WindowManager(object):
     def set_key_aliases(self):
         keystrings = [
             "x", "q",
-            "equal", "bracketleft", "bracketright", "backslash", "slash",
+            "minus", "equal", "bracketleft", "bracketright", "backslash", "slash",
             "F1", "Tab", "Escape"
         ]
         for keystring in keystrings:
@@ -939,6 +951,8 @@ class WindowManager(object):
                 self.start_terminal()
             elif ev.detail == self.key_alias["q"] and ev.child != X.NONE:
                 self.destroy_window(ev.child)
+            elif ev.detail == self.key_alias["minus"] and ev.child != X.NONE:
+                self.resize_window(ev.child, "center")
             elif ev.detail == self.key_alias["equal"] and ev.child != X.NONE:
                 self.resize_window(ev.child, "maximize")
             elif ev.detail == self.key_alias["bracketleft"] and ev.child != X.NONE:
