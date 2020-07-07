@@ -32,7 +32,7 @@ Note that whichever window your cursor is hovering over will be the window with 
 ### Keyboard shortcuts
 - `Alt + Left Click` and drag: Move window
 - `Alt + Right Click` and drag: Resize window
-- `Alt + M`: Maximize currently-focused window
+- `Alt + =`: Maximize currently-focused window
 - `Alt + [`: Fill left-side of the screen with currently-focused window
 - `Alt + ]`: Fill right-side of the screen with currently-focused window
 - `Alt + \`: Fill top of the screen with currently-focused window
