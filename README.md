@@ -39,6 +39,7 @@ Note that whichever window your cursor is hovering over will be the window with 
 - `Alt + /`: Fill bottom of the screen with currently-focused window
 - `Alt + Q`: Close the currently-focused window
 - `Alt + Tab`: Cycle through all windows
+- `Alt + Left Click` on deskbar: Cycle through all windows
 - `Alt + X`: Launch a new terminal window
 - `Alt + Esc`: Exit BiscuitWM session
 

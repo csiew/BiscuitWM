@@ -161,6 +161,7 @@ class Deskbar(object):
         self.padding_leading = 10
         self.padding_between = 20
         self.padding_trailing = 10
+        self.color_scheme = self.get_deskbar_color_scheme()
 
         self.deskbar = None
         self.deskbar_gc = None
@@ -213,7 +214,7 @@ class Deskbar(object):
         command += '%I:%M'
         if self.prefs.deskbar["clock"]["show_seconds"] == 1:
             command += ':%S'
-        command += ':%P"'
+        command += ' %P"'
         return command
 
     def get_string_physical_width(self, text):
@@ -241,9 +242,7 @@ class Deskbar(object):
             item.stop()
         self.deskbar_update_rt.stop()
 
-    def draw(self):
-        screen_width, screen_height = self.display_dimensions.width, self.display_dimensions.height
-
+    def get_deskbar_color_scheme(self):
         background_pixel = self.pixel_palette.get_named_pixel("white")
         foreground_pixel = self.pixel_palette.get_named_pixel("black")
         if self.prefs.deskbar["foreground_color"] in self.pixel_palette.hex_map.keys():
@@ -255,11 +254,20 @@ class Deskbar(object):
         elif self.pixel_palette.is_color_hex(self.prefs.deskbar["background_color"]) is True:
             background_pixel = self.pixel_palette.get_hex_pixel(self.prefs.deskbar["background_color"])
 
+        return {
+            "bg": background_pixel,
+            "fg": foreground_pixel
+        }
+
+    def draw(self):
+        screen_width, screen_height = self.display_dimensions.width, self.display_dimensions.height
+        background_pixel, foreground_pixel = self.color_scheme["bg"], self.color_scheme["fg"]
+
         self.deskbar = self.dpy_root.create_window(
             -self.border_width, -self.border_width, screen_width, self.height, self.border_width,
             self.screen.root_depth,
             background_pixel=background_pixel,
-            event_mask=X.StructureNotifyMask | X.ExposureMask | X.KeyPressMask | X.ButtonPressMask,
+            event_mask=X.StructureNotifyMask | X.ExposureMask | X.ButtonPressMask | X.ButtonReleaseMask,
         )
         self.deskbar_gc = self.deskbar.create_gc(
             font=self.system_font,
@@ -330,13 +338,10 @@ class Deskbar(object):
             self.deskbar_items["trailing"]["timestamp"].text.encode('utf-8')
         )
 
-
 '''
 Thanks to vulkd for creating xround
 https://github.com/vulkd/xround
 '''
-
-
 class DisplayCorners(object):
     def __init__(
             self, dpy, dpy_root, screen, display_dimensions,
@@ -832,7 +837,6 @@ class WindowManager(object):
                 border_color = self.pixel_palette.get_named_pixel(self.prefs.appearance["active_window_border_color"])
             elif self.pixel_palette.is_color_hex(self.prefs.appearance["active_window_border_color"]) is True:
                 border_color = self.pixel_palette.get_hex_pixel(self.prefs.appearance["active_window_border_color"])
-            window.configure(border_width=self.prefs.appearance["window_border_width"])
             window.change_attributes(None, border_pixel=border_color)
 
     def set_cursor(self, window):
@@ -965,6 +969,8 @@ class WindowManager(object):
                     self.set_focus_window_border(ev.child)
                     self.attr = ev.child.get_geometry()
                     self.start = ev
+                elif self.deskbar is not None and ev.child == self.deskbar.deskbar:
+                    self.cycle_windows()
             elif ev.type == X.MotionNotify and self.start:
                 xdiff = ev.root_x - self.start.root_x
                 ydiff = ev.root_y - self.start.root_y
