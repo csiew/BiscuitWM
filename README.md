@@ -30,16 +30,21 @@ At the moment, BiscuitWM follows the hybrid keyboard and mouse driven interactio
 Note that whichever window your cursor is hovering over will be the window with input focus (and will also be raised). Future iterations will require the window to be raised by clicking on the window.
 
 ### Keyboard shortcuts
+#### Moving windows
 - `Alt + Left Click` and drag: Move window
 - `Alt + Right Click` and drag: Resize window
+- `Alt + Q`: Close the currently-focused window
+#### Resizing windows
 - `Alt + =`: Maximize currently-focused window
 - `Alt + [`: Fill left-side of the screen with currently-focused window
 - `Alt + ]`: Fill right-side of the screen with currently-focused window
 - `Alt + \`: Fill top of the screen with currently-focused window
 - `Alt + /`: Fill bottom of the screen with currently-focused window
-- `Alt + Q`: Close the currently-focused window
+#### Multitasking
 - `Alt + Tab`: Cycle through all windows
 - `Alt + Left Click` on deskbar: Cycle through all windows
+- `Alt + Right Click` on deskbar: Show number of windows
+#### Session
 - `Alt + X`: Launch a new terminal window
 - `Alt + Esc`: Exit BiscuitWM session
 
