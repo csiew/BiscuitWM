@@ -536,6 +536,7 @@ class WindowManager(object):
         self.dpy_root = self.screen.root
         self.colormap = self.screen.default_colormap
         self.pixel_palette = PixelPalette(self.colormap)
+        self.system_font = load_font(self.dpy, FONT_NAME)
 
         self.display_dimensions = self.get_display_geometry()
         self.window_resize_options = [
@@ -549,6 +550,7 @@ class WindowManager(object):
 
         self.managed_windows = []
         self.exposed_windows = []
+        self.window_frame_groups = {}
         self.last_raised_window = None
         self.active_window_title = self.session_info.session_name
         self.window_order = -1
@@ -723,14 +725,17 @@ class WindowManager(object):
             print("Found window: %s", self.get_window_shortname(window))
         self.managed_windows.append(window)
         self.exposed_windows.append(window)
+
         self.window_order = len(self.managed_windows) - 1
         self.update_window_count()
 
-        window.map()
-        mask = X.EnterWindowMask | X.LeaveWindowMask
+        # window.map()
+        mask = X.EnterWindowMask | X.LeaveWindowMask | X.ButtonPressMask
         window.change_attributes(event_mask=mask)
 
-        self.decorate_window(window)
+        self.create_window_frame(window)
+
+        # self.decorate_window(window)
 
     def unmanage_window(self, window):
         if self.is_managed_window(window):
@@ -747,7 +752,7 @@ class WindowManager(object):
         if self.prefs.dev["debug"] == 1:
             print("Destroy window: %s", self.get_window_shortname(window))
         if self.is_managed_window(window):
-            window.destroy()
+            self.destroy_window_frame(window)
             self.unmanage_window(window)
 
     def raise_window(self, window):
@@ -842,6 +847,7 @@ class WindowManager(object):
             window_width, window_height = window_dimensions.width, window_dimensions.height
             window_x = 5
             window_y = 25
+
             if self.prefs.placement["auto_window_placement"] == 1:
                 # Move new window out of the way of the deskbar
                 if self.prefs.placement["auto_window_fit"] == 1:
@@ -860,6 +866,45 @@ class WindowManager(object):
                     height=window_height
                 )
             self.set_unfocus_window_border(window)
+
+    def create_window_frame(self, window):
+        titlebar_height = 20
+        window_dimensions = self.get_window_geometry(window)
+        window_width = window_dimensions.width + (self.prefs.appearance["window_border_width"]*2)
+        window_height = window_dimensions.height + (self.prefs.appearance["window_border_width"]*2) + titlebar_height
+
+        border_pixel = self.pixel_palette.get_named_pixel("black")
+        background_pixel = self.pixel_palette.get_named_pixel("lightgray")
+        foreground_pixel = self.pixel_palette.get_named_pixel("black")
+
+        frame_window = self.dpy_root.create_window(
+            0, 0, window_width, window_height, 1,
+            self.screen.root_depth,
+            border_pixel=border_pixel,
+            background_pixel=background_pixel,
+            foreground_pixel=foreground_pixel,
+            event_mask=X.StructureNotifyMask | X.ExposureMask | X.ButtonPressMask | X.ButtonReleaseMask,
+        )
+        window.reparent(
+            parent=frame_window,
+            x=self.prefs.appearance["window_border_width"],
+            y=self.prefs.appearance["window_border_width"] + titlebar_height
+        )
+
+        self.window_frame_groups[window.id] = {
+            "frame_window": frame_window,
+            "application_window": window
+        }
+
+        frame_window.map()
+        self.decorate_window(frame_window)
+        self.focus_window(frame_window)
+        self.raise_window(frame_window)
+
+    def destroy_window_frame(self, window):
+        if window.id in self.window_frame_groups.keys():
+            self.window_frame_groups[window.id]["frame_window"].destroy()
+            self.window_frame_groups[window.id] = None
 
     def set_unfocus_window_border(self, window):
         if not self.is_dock(window):
@@ -986,8 +1031,8 @@ class WindowManager(object):
                 if self.is_cyclical_window(ev.window):
                     try:
                         self.manage_window(ev.window)
-                        self.focus_window(ev.window)
-                        self.raise_window(ev.window)
+                        # self.focus_window(ev.window)
+                        # self.raise_window(ev.window)
                     except AttributeError:
                         print("Unable to handle new window")
                         pass
@@ -995,7 +1040,7 @@ class WindowManager(object):
                 try:
                     self.destroy_window(ev.window)
                 except AttributeError:
-                    print("Unable to unhandle new window")
+                    print("Unable to unhandle window")
                     pass
             elif ev.type == X.EnterNotify:
                 self.focus_window(ev.window)
@@ -1046,11 +1091,11 @@ class WindowManager(object):
         )
         self.dpy_root.grab_button(
             1,
-            X.Mod1Mask,
+            X.NONE,
             1,
             X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask,
             X.GrabModeAsync,
-            X.GrabModeAsync,
+            X.NONE,
             X.NONE,
             X.NONE
         )
