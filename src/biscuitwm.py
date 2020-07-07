@@ -889,6 +889,7 @@ class WindowManager(object):
             elif ev.type == X.ButtonPress and ev.child != X.NONE:
                 if not self.is_dock(ev.child):
                     self.raise_window(ev.child)
+                    self.set_focus_window_border(ev.child)
                     self.attr = ev.child.get_geometry()
                     self.start = ev
             elif ev.type == X.MotionNotify and self.start:
