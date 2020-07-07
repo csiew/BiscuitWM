@@ -100,12 +100,13 @@ class RepeatedTimer(object):
 
 
 class DeskbarItem(object):
-    def __init__(self, name, text="", width=0, interval=None, function=None):
+    def __init__(self, name, text="", width=0, interval=None, function=None, enabled=True):
         self.name = name
         self.text = text
         self.width = width
         self.interval = interval
         self.function = function
+        self.enabled = enabled
         if interval is not None and function is not None:
             self.rt_event = RepeatedTimer(interval, function)
         else:
@@ -158,12 +159,10 @@ class Deskbar(object):
         self.border_width = 1
         self.height = 20
         self.text_y_alignment = 15
-        self.padding_leading = 10
+        self.padding_leading = 15
         self.padding_between = 20
-        self.padding_trailing = 10
+        self.padding_trailing = 15
         self.color_scheme = self.get_deskbar_color_scheme()
-
-        self.show_window_count = False
 
         self.deskbar = None
         self.deskbar_gc = None
@@ -176,7 +175,8 @@ class Deskbar(object):
                 ),
                 "window_count": DeskbarItem(
                     "Window Count",
-                    text="0"
+                    text="0 windows",
+                    enabled=False
                 ),
             },
             "trailing": {
@@ -186,12 +186,21 @@ class Deskbar(object):
                     function=self.set_memory_usage
                 ),
                 "timestamp": DeskbarItem(
-                    "Time",
+                    "Clock",
                     interval=1 if self.prefs.deskbar["clock"]["show_seconds"] == 1 else 30,
-                    function=self.set_timestamp
+                    function=self.set_timestamp,
+                    enabled=self.prefs.deskbar["clock"]["enabled"] == 1
                 ),
             },
         }
+
+        # Leading items drawn from left to right
+        # Trailing items drawn from right to left
+        self.deskbar_items_order = {
+            "leading": ["window_count", "active_window_title"],
+            "trailing": ["timestamp", "memory_usage"]
+        }
+
         self.deskbar_update_rt = RepeatedTimer(1, self.update)
 
     def set_active_window_title(self, window_title):
@@ -201,7 +210,10 @@ class Deskbar(object):
         self.deskbar_items["leading"]["active_window_title"].width = self.get_string_physical_width(window_title)
 
     def set_window_count(self, window_count):
-        window_count_string = str(window_count) + " windows"
+        suffix = " windows"
+        if window_count == 1:
+            suffix = " window"
+        window_count_string = str(window_count) + suffix
         self.deskbar_items["leading"]["window_count"].text = window_count_string
         self.deskbar_items["leading"]["active_window_title"].width = self.get_string_physical_width(window_count_string)
 
@@ -234,7 +246,7 @@ class Deskbar(object):
         return result.overall_width
 
     def get_memory_usage(self):
-        return os.popen("free -m | awk 'NR==2{printf $3*100/$2}'").read()[:-1]
+        return os.popen("free -m | awk 'NR==2{printf $3*100/$2}' | xargs printf '%.2f'").read()[:-1]
 
     def get_current_time(self):
         return os.popen(self.time_command).read()[:-1]
@@ -325,40 +337,32 @@ class Deskbar(object):
         self.deskbar.clear_area()
 
         # Leading items
-        if self.show_window_count is False:
-            self.deskbar.draw_text(
-                self.deskbar_gc,
-                self.padding_leading,
-                self.text_y_alignment,
-                self.deskbar_items["leading"]["active_window_title"].text.encode('utf-8')
-            )
-        else:
-            self.deskbar.draw_text(
-                self.deskbar_gc,
-                self.padding_leading,
-                self.text_y_alignment,
-                self.deskbar_items["leading"]["window_count"].text.encode('utf-8')
-            )
+        for item_key in self.deskbar_items_order["leading"]:
+            item = self.deskbar_items["leading"][item_key]
+            if item.enabled is True:
+                self.deskbar.draw_text(
+                    self.deskbar_gc,
+                    self.padding_leading,
+                    self.text_y_alignment,
+                    item.text.encode('utf-8')
+                )
 
         # Trailing items
-        self.deskbar.draw_text(
-            self.deskbar_gc,
-            self.display_dimensions.width - (
-                    (self.deskbar_items["trailing"]["memory_usage"].width + self.padding_between)
-                    + (self.deskbar_items["trailing"]["timestamp"].width + self.padding_trailing)
-            ),
-            self.text_y_alignment,
-            self.deskbar_items["trailing"]["memory_usage"].text.encode('utf-8')
-        )
-        self.deskbar.draw_text(
-            self.deskbar_gc,
-            self.display_dimensions.width - (self.deskbar_items["trailing"]["timestamp"].width + self.padding_trailing),
-            self.text_y_alignment,
-            self.deskbar_items["trailing"]["timestamp"].text.encode('utf-8')
-        )
+        spacing_from_trailing_end = self.padding_trailing
+        for item_key in self.deskbar_items_order["trailing"]:
+            item = self.deskbar_items["trailing"][item_key]
+            if item.enabled is True:
+                self.deskbar.draw_text(
+                    self.deskbar_gc,
+                    self.display_dimensions.width - (item.width + spacing_from_trailing_end),
+                    self.text_y_alignment,
+                    item.text.encode('utf-8')
+                )
+                spacing_from_trailing_end += (item.width + self.padding_between)
 
-    def toggle_show_window_count(self):
-        self.show_window_count = not self.show_window_count
+    def toggle_window_count(self):
+        self.deskbar_items["leading"]["window_count"].enabled = not self.deskbar_items["leading"]["window_count"].enabled
+        self.deskbar_items["leading"]["active_window_title"].enabled = not self.deskbar_items["leading"]["window_count"].enabled
 
 '''
 Thanks to vulkd for creating xround
@@ -578,9 +582,7 @@ class WindowManager(object):
             self.wm_window_types["normal"],
             self.wm_window_types["dialog"],
             self.wm_window_types["utility"],
-            self.wm_window_types["toolbar"],
-            self.wm_window_types["menu"],
-            self.wm_window_types["splash"]
+            self.wm_window_types["toolbar"]
         ]
 
         self.deskbar = None
@@ -908,8 +910,6 @@ class WindowManager(object):
             msg = "DestroyNotify"
         elif event == X.MapNotify:
             msg = "MapNotify"
-        elif event == X.Expose:
-            msg = "Expose"
         elif event == X.FocusIn:
             msg = "FocusIn"
         elif event == X.FocusOut:
@@ -983,13 +983,14 @@ class WindowManager(object):
                 self.set_active_window_title(ev.window)
 
             if ev.type == X.MapNotify:
-                try:
-                    self.manage_window(ev.window)
-                    self.focus_window(ev.window)
-                    self.raise_window(ev.window)
-                except AttributeError:
-                    print("Unable to handle new window")
-                    pass
+                if self.is_cyclical_window(ev.window):
+                    try:
+                        self.manage_window(ev.window)
+                        self.focus_window(ev.window)
+                        self.raise_window(ev.window)
+                    except AttributeError:
+                        print("Unable to handle new window")
+                        pass
             elif ev.type == X.DestroyNotify:
                 try:
                     self.destroy_window(ev.window)
@@ -1014,7 +1015,7 @@ class WindowManager(object):
                     if ev.detail == 1:
                         self.cycle_windows()
                     elif ev.detail == 3:
-                        self.deskbar.toggle_show_window_count()
+                        self.deskbar.toggle_window_count()
                         self.deskbar.update()
             elif ev.type == X.MotionNotify and self.start:
                 xdiff = ev.root_x - self.start.root_x
