@@ -158,6 +158,8 @@ class Deskbar(object):
 
         self.border_width = 1
         self.height = 20
+        self.real_height = self.height + self.border_width
+
         self.text_y_alignment = 15
         self.padding_leading = 15
         self.padding_between = 20
@@ -785,6 +787,19 @@ class WindowManager(object):
 
     ### WINDOW DECORATION
 
+    def move_window(self, xdiff, ydiff):
+        window_dimensions = self.get_window_geometry(self.start.child)
+        if self.deskbar is not None and ydiff < 0 and window_dimensions.y <= self.deskbar.real_height:
+            y = self.deskbar.real_height
+        else:
+            y = self.attr.y + (self.start.detail == 1 and ydiff or 0)
+        self.start.child.configure(
+            x=self.attr.x + (self.start.detail == 1 and xdiff or 0),
+            y=y,
+            width=max(1, self.attr.width + (self.start.detail == 3 and xdiff or 0)),
+            height=max(1, self.attr.height + (self.start.detail == 3 and ydiff or 0))
+        )
+
     def resize_window(self, window, position):
         if self.is_dock(window) is False:
             if self.prefs.dev["debug"] == 1:
@@ -1020,12 +1035,7 @@ class WindowManager(object):
             elif ev.type == X.MotionNotify and self.start:
                 xdiff = ev.root_x - self.start.root_x
                 ydiff = ev.root_y - self.start.root_y
-                self.start.child.configure(
-                    x=self.attr.x + (self.start.detail == 1 and xdiff or 0),
-                    y=self.attr.y + (self.start.detail == 1 and ydiff or 0),
-                    width=max(1, self.attr.width + (self.start.detail == 3 and xdiff or 0)),
-                    height=max(1, self.attr.height + (self.start.detail == 3 and ydiff or 0))
-                )
+                self.move_window(xdiff, ydiff)
             elif ev.type == X.ButtonRelease:
                 self.start = None
                 self.attr = None
