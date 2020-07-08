@@ -10,6 +10,7 @@ import Xlib.threaded
 from Xlib import X, display, XK, Xatom, Xcursorfont, error
 from Xlib.ext import shape
 from x11util import load_font
+from ewmh import EWMH
 
 # GLOBAL VARIABLES
 
@@ -533,6 +534,7 @@ class WindowManager(object):
     def __init__(self, prefs, session_info):
         self.prefs = prefs
         self.session_info = session_info
+        self.ewmh = EWMH()
         self.dpy = display.Display()
         self.screen = self.dpy.screen()
         self.dpy_root = self.screen.root
@@ -674,11 +676,21 @@ class WindowManager(object):
         except:
             return None
 
+    def get_maximum_available_geometry(self):
+        window_width = self.display_dimensions.width
+        window_height = self.display_dimensions.height
+        if self.deskbar is not None:
+            window_height -= self.deskbar.real_height
+        return window_width, window_height, self.deskbar is not None
+
     def get_window_attributes(self, window):
         try:
             return window.get_attributes()
         except:
             return None
+
+    def get_window_state(self, window):
+        return self.ewmh.getWmState(window, str=True)
 
     def get_window_shortname(self, window):
         return '0x{:x} [{}]'.format(window.id, self.get_window_class(window))
@@ -787,6 +799,10 @@ class WindowManager(object):
 
     ### WINDOW DECORATION
 
+    def is_window_maximized(self, window):
+        states = self.get_window_state(window)
+        print(states)
+
     def move_window(self, xdiff, ydiff):
         window_dimensions = self.get_window_geometry(self.start.child)
         if self.deskbar is not None and ydiff < 0 and window_dimensions.y <= self.deskbar.real_height:
@@ -812,13 +828,10 @@ class WindowManager(object):
                     window_x = (self.display_dimensions.width - window_width) // 2
                     window_y = (self.display_dimensions.height - window_height) // 2
                 elif position == "maximize":
-                    window_width = self.display_dimensions.width
-                    window_height = self.display_dimensions.height + (
-                        0 if self.deskbar is None else self.deskbar.height)
+                    window_width, window_height, has_deskbar = self.get_maximum_available_geometry()
                     window_x = -self.prefs.appearance["window_border_width"]
-                    window_y = -self.prefs.appearance["window_border_width"] if self.deskbar is None else (
-                            -self.prefs.appearance[
-                                "window_border_width"] + self.deskbar.height + self.deskbar.border_width
+                    window_y = -self.prefs.appearance["window_border_width"] if not has_deskbar else (
+                            -self.prefs.appearance["window_border_width"] + self.deskbar.real_height
                     )
                 elif position == "left" or position == "right":
                     window_width = self.display_dimensions.width // 2
@@ -841,6 +854,14 @@ class WindowManager(object):
                     elif position == "bottom":
                         window_y = window_height + self.prefs.appearance["window_border_width"]
                     window_x = -self.prefs.appearance["window_border_width"]
+
+                if position == "maximize":
+                    self.ewmh.setWmState(window, 1, "_NET_WM_STATE_MAXIMIZED_VERT")
+                    self.ewmh.setWmState(window, 1, "_NET_WM_STATE_MAXIMIZED_HORIZ")
+                else:
+                    self.ewmh.setWmState(window, 0, "_NET_WM_STATE_MAXIMIZED_VERT")
+                    self.ewmh.setWmState(window, 0, "_NET_WM_STATE_MAXIMIZED_HORIZ")
+
                 window.configure(
                     x=window_x,
                     y=window_y,
@@ -1039,6 +1060,9 @@ class WindowManager(object):
             elif ev.type == X.ButtonRelease:
                 self.start = None
                 self.attr = None
+                if ev.child != X.NONE and self.is_dock(ev.child) is False:
+                    self.ewmh.setWmState(ev.window, 0, "_NET_WM_STATE_MAXIMIZED_VERT")
+                    self.ewmh.setWmState(ev.window, 0, "_NET_WM_STATE_MAXIMIZED_HORIZ")
 
             if self.display_corners is not None:
                 self.display_corners.raise_window()
