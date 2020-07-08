@@ -729,13 +729,8 @@ class WindowManager(object):
         self.window_order = len(self.managed_windows) - 1
         self.update_window_count()
 
-        # window.map()
         mask = X.EnterWindowMask | X.LeaveWindowMask | X.ButtonPressMask
         window.change_attributes(event_mask=mask)
-
-        self.create_window_frame(window)
-
-        # self.decorate_window(window)
 
     def unmanage_window(self, window):
         if self.is_managed_window(window):
@@ -752,8 +747,56 @@ class WindowManager(object):
         if self.prefs.dev["debug"] == 1:
             print("Destroy window: %s", self.get_window_shortname(window))
         if self.is_managed_window(window):
-            self.destroy_window_frame(window)
             self.unmanage_window(window)
+        self.destroy_window_frame(window)
+
+    def create_window_frame(self, window):
+        titlebar_height = 20
+        window_dimensions = self.get_window_geometry(window)
+        window_width = window_dimensions.width + (self.prefs.appearance["window_border_width"]*2)
+        window_height = window_dimensions.height + (self.prefs.appearance["window_border_width"]*2) + titlebar_height
+
+        border_pixel = self.pixel_palette.get_named_pixel("black")
+        background_pixel = self.pixel_palette.get_named_pixel("lightgray")
+        foreground_pixel = self.pixel_palette.get_named_pixel("black")
+
+        frame_window = self.dpy_root.create_window(
+            0, 0, window_width, window_height, 1,
+            self.screen.root_depth,
+            border_pixel=border_pixel,
+            background_pixel=background_pixel,
+            foreground_pixel=foreground_pixel,
+            event_mask=X.StructureNotifyMask | X.ExposureMask | X.ButtonPressMask | X.ButtonReleaseMask,
+        )
+        window.reparent(
+            parent=frame_window,
+            x=self.prefs.appearance["window_border_width"],
+            y=self.prefs.appearance["window_border_width"] + titlebar_height
+        )
+        self.window_frame_groups[window] = frame_window
+        frame_window.map()
+        return frame_window
+
+    def destroy_window_frame(self, window):
+        if window in self.window_frame_groups.keys():
+            print("Window found in frame groups")
+            self.window_frame_groups[window].destroy()
+            self.window_frame_groups.pop(window)
+        else:
+            print("Window NOT in frame groups")
+            key = self.get_window_frame_by_value(window)
+            if key is not None:
+                print("Window found in frame groups")
+                self.window_frame_groups[key].destroy()
+                self.window_frame_groups.pop(key)
+        window.destroy()
+
+    def get_window_frame_by_value(self, window):
+        if window in self.window_frame_groups.values():
+            for key, value in self.window_frame_groups.items():
+                if value == window:
+                    return key
+        return None
 
     def raise_window(self, window):
         if not self.is_dock(window):
@@ -866,45 +909,6 @@ class WindowManager(object):
                     height=window_height
                 )
             self.set_unfocus_window_border(window)
-
-    def create_window_frame(self, window):
-        titlebar_height = 20
-        window_dimensions = self.get_window_geometry(window)
-        window_width = window_dimensions.width + (self.prefs.appearance["window_border_width"]*2)
-        window_height = window_dimensions.height + (self.prefs.appearance["window_border_width"]*2) + titlebar_height
-
-        border_pixel = self.pixel_palette.get_named_pixel("black")
-        background_pixel = self.pixel_palette.get_named_pixel("lightgray")
-        foreground_pixel = self.pixel_palette.get_named_pixel("black")
-
-        frame_window = self.dpy_root.create_window(
-            0, 0, window_width, window_height, 1,
-            self.screen.root_depth,
-            border_pixel=border_pixel,
-            background_pixel=background_pixel,
-            foreground_pixel=foreground_pixel,
-            event_mask=X.StructureNotifyMask | X.ExposureMask | X.ButtonPressMask | X.ButtonReleaseMask,
-        )
-        window.reparent(
-            parent=frame_window,
-            x=self.prefs.appearance["window_border_width"],
-            y=self.prefs.appearance["window_border_width"] + titlebar_height
-        )
-
-        self.window_frame_groups[window.id] = {
-            "frame_window": frame_window,
-            "application_window": window
-        }
-
-        frame_window.map()
-        self.decorate_window(frame_window)
-        self.focus_window(frame_window)
-        self.raise_window(frame_window)
-
-    def destroy_window_frame(self, window):
-        if window.id in self.window_frame_groups.keys():
-            self.window_frame_groups[window.id]["frame_window"].destroy()
-            self.window_frame_groups[window.id] = None
 
     def set_unfocus_window_border(self, window):
         if not self.is_dock(window):
@@ -1029,16 +1033,20 @@ class WindowManager(object):
 
             if ev.type == X.MapNotify:
                 if self.is_cyclical_window(ev.window):
+                    frame_window = self.create_window_frame(ev.window)
                     try:
                         self.manage_window(ev.window)
-                        # self.focus_window(ev.window)
-                        # self.raise_window(ev.window)
+                        self.decorate_window(frame_window)
+                        self.focus_window(frame_window)
+                        self.raise_window(frame_window)
+                        frame_window.map()
                     except AttributeError:
                         print("Unable to handle new window")
                         pass
             elif ev.type == X.DestroyNotify:
                 try:
                     self.destroy_window(ev.window)
+                    self.destroy_window_frame(ev.window)
                 except AttributeError:
                     print("Unable to unhandle window")
                     pass
@@ -1091,11 +1099,11 @@ class WindowManager(object):
         )
         self.dpy_root.grab_button(
             1,
-            X.NONE,
+            X.Mod1Mask,
             1,
             X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask,
             X.GrabModeAsync,
-            X.NONE,
+            X.GrabModeAsync,
             X.NONE,
             X.NONE
         )
