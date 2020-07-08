@@ -14,8 +14,31 @@ from ewmh import EWMH
 
 # GLOBAL VARIABLES
 
-FONT_NAME = '9x15'
+FONT_OPTIONS = {
+    1: '-adobe-helvetica-bold-r-normal--*-120-*-*-*-*-iso8859-*',
+    2: '5x7',
+    3: '6x10',
+    4: '7x13',
+    5: '9x15',
+    6: '10x20',
+    7: '-misc-fixed-medium-r-normal--8-80-75-75-c-50-iso10646-1',
+    8: '-misc-fixed-medium-r-semicondensed--13-120-75-75-c-60-iso10646-1',
+    9: '-misc-fixed-medium-r-normal--14-130-75-75-c-70-iso10646-1',
+    10: '-misc-fixed-medium-r-normal--13-120-75-75-c-80-iso10646-1',
+    11: '-misc-fixed-medium-r-normal--18-120-100-100-c-90-iso10646-1',
+    12: '-misc-fixed-medium-r-normal--20-200-75-75-c-100-iso10646-1',
+    13: '8x13',
+    14: '6x13'
+}
+FONT_NAME = FONT_OPTIONS[5]
 CONFIG_FILE_PATH = "/etc/biscuitwm/biscuitwm.json"
+
+
+def run_command(command_string):
+    try:
+        subprocess.Popen(command_string)
+    except:
+        print("Unable to perform command")
 
 
 class SessionInfo(object):
@@ -167,6 +190,8 @@ class Deskbar(object):
         self.padding_trailing = 15
         self.color_scheme = self.get_deskbar_color_scheme()
 
+        self.command_string = ""
+
         self.deskbar = None
         self.deskbar_gc = None
 
@@ -181,6 +206,11 @@ class Deskbar(object):
                     text="0 windows",
                     enabled=False
                 ),
+                "launcher": DeskbarItem(
+                    "Launcher",
+                    text=self.command_string,
+                    enabled=False
+                )
             },
             "trailing": {
                 "memory_usage": DeskbarItem(
@@ -200,11 +230,20 @@ class Deskbar(object):
         # Leading items drawn from left to right
         # Trailing items drawn from right to left
         self.deskbar_items_order = {
-            "leading": ["window_count", "active_window_title"],
+            "leading": ["window_count", "active_window_title", "launcher"],
             "trailing": ["timestamp", "memory_usage"]
         }
 
         self.deskbar_update_rt = RepeatedTimer(1, self.update)
+
+    def launcher_is_running(self):
+        return self.deskbar_items["leading"]["launcher"].enabled
+
+    def toggle_launcher(self, state=False):
+        print("Deskbar launcher mode: " + str(state))
+        self.deskbar_items["leading"]["launcher"].enabled = state
+        self.command_string = ""
+        self.update()
 
     def set_active_window_title(self, window_title):
         if window_title is None or len(window_title) == 0:
@@ -340,15 +379,24 @@ class Deskbar(object):
         self.deskbar.clear_area()
 
         # Leading items
-        for item_key in self.deskbar_items_order["leading"]:
-            item = self.deskbar_items["leading"][item_key]
-            if item.enabled is True:
-                self.deskbar.draw_text(
-                    self.deskbar_gc,
-                    self.padding_leading,
-                    self.text_y_alignment,
-                    item.text.encode('utf-8')
-                )
+        if self.deskbar_items["leading"]["launcher"].enabled is False:
+            for item_key in self.deskbar_items_order["leading"]:
+                item = self.deskbar_items["leading"][item_key]
+                if item.enabled is True:
+                    self.deskbar.draw_text(
+                        self.deskbar_gc,
+                        self.padding_leading,
+                        self.text_y_alignment,
+                        item.text.encode('utf-8')
+                    )
+        else:
+            # Launcher takes precedence
+            self.deskbar.draw_text(
+                self.deskbar_gc,
+                self.padding_leading,
+                self.text_y_alignment,
+                (self.command_string + "|").encode('utf-8')
+            )
 
         # Trailing items
         spacing_from_trailing_end = self.padding_trailing
@@ -705,10 +753,14 @@ class WindowManager(object):
             return self.session_info.session_name
         return result
 
-    def set_active_window_title(self, window):
-        window_title = self.get_window_title(window)
-        if window_title is None:
-            self.active_window_title = self.session_info.session_name
+    def set_active_window_title(self, window=None, custom_title=None):
+        window_title = None
+        if window is not None:
+            window_title = self.get_window_title(window)
+            if window_title is None:
+                self.active_window_title = self.session_info.session_name
+        elif custom_title is not None:
+            window_title = custom_title
         else:
             self.active_window_title = window_title
         if self.prefs.deskbar["enabled"] == 1:
@@ -758,11 +810,12 @@ class WindowManager(object):
                 self.exposed_windows.remove(window)
 
     def destroy_window(self, window):
-        if self.prefs.dev["debug"] == 1:
-            print("Destroy window: %s", self.get_window_shortname(window))
-        if self.is_managed_window(window):
-            window.destroy()
-            self.unmanage_window(window)
+        if self.is_dock(window) is False:
+            if self.prefs.dev["debug"] == 1:
+                print("Destroy window: %s", self.get_window_shortname(window))
+            if self.is_managed_window(window):
+                window.destroy()
+                self.unmanage_window(window)
 
     def raise_window(self, window):
         if not self.is_dock(window):
@@ -967,18 +1020,39 @@ class WindowManager(object):
     # SPECIAL
 
     def start_terminal(self):
-        subprocess.Popen('x-terminal-emulator')
+        run_command('x-terminal-emulator')
 
     # EVENT HANDLING
+
+    def keycode_to_string(self, detail):
+        return XK.keysym_to_string(self.dpy.keycode_to_keysym(detail, 0))
 
     def set_key_aliases(self):
         keystrings = [
             "x", "q",
             "minus", "equal", "bracketleft", "bracketright", "backslash", "slash",
-            "F1", "Tab", "Escape"
+            "F1", "Tab", "Escape", "space", "Return", "BackSpace"
         ]
         for keystring in keystrings:
             self.key_alias[keystring] = self.dpy.keysym_to_keycode(XK.string_to_keysym(keystring))
+
+    def handle_launcher(self, ev):
+        if ev.detail == self.key_alias["Escape"]:
+            self.deskbar.toggle_launcher(state=False)
+        elif ev.detail == self.key_alias["BackSpace"] and len(self.deskbar.command_string) > 0:
+            self.deskbar.command_string = self.deskbar.command_string[:-1]
+            self.deskbar.update()
+        elif ev.detail == self.key_alias["Return"]:
+            run_command(self.deskbar.command_string)
+            self.deskbar.toggle_launcher(state=False)
+        else:
+            try:
+                key_pressed = self.keycode_to_string(ev.detail)
+                if key_pressed is not None:
+                    self.deskbar.command_string += key_pressed
+                    self.deskbar.update()
+            except:
+                print("Invalid key press detection")
 
     def handle_keypress(self, ev):
         if ev.detail in self.key_alias.values():
@@ -1004,6 +1078,9 @@ class WindowManager(object):
                 self.raise_window(ev.window)
             elif ev.detail == self.key_alias["Tab"]:
                 self.cycle_windows()
+            elif ev.detail == self.key_alias["space"]:
+                if self.deskbar is not None:
+                    self.deskbar.toggle_launcher(state=True)
             elif ev.detail == self.key_alias["Escape"]:
                 self.end_session()
         else:
@@ -1018,7 +1095,12 @@ class WindowManager(object):
             if ev.type in [X.EnterNotify, X.LeaveNotify, X.MapNotify]:
                 self.set_active_window_title(ev.window)
 
-            if ev.type == X.MapNotify:
+            if ev.type == X.KeyPress:
+                if self.deskbar is not None and self.deskbar.launcher_is_running() is True:
+                    self.handle_launcher(ev)
+                else:
+                    self.handle_keypress(ev)
+            elif ev.type == X.MapNotify:
                 if self.is_cyclical_window(ev.window):
                     try:
                         self.manage_window(ev.window)
@@ -1039,8 +1121,6 @@ class WindowManager(object):
                     self.raise_window(ev.window)
             elif ev.type == X.LeaveNotify:
                 self.set_unfocus_window_border(ev.window)
-            elif ev.type == X.KeyPress:
-                self.handle_keypress(ev)
             elif ev.type == X.ButtonPress and ev.child != X.NONE:
                 if not self.is_dock(ev.child):
                     self.raise_window(ev.child)
@@ -1073,14 +1153,14 @@ class WindowManager(object):
         self.set_key_aliases()
         self.dpy_root.grab_key(
             X.AnyKey,
-            X.Mod1Mask,
+            X.Mod1Mask | X.Mod2Mask,
             1,
             X.GrabModeAsync,
             X.GrabModeAsync
         )
         self.dpy_root.grab_button(
             1,
-            X.Mod1Mask,
+            X.Mod1Mask | X.Mod2Mask,
             1,
             X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask,
             X.GrabModeAsync,
@@ -1090,7 +1170,7 @@ class WindowManager(object):
         )
         self.dpy_root.grab_button(
             3,
-            X.Mod1Mask,
+            X.Mod1Mask | X.Mod2Mask,
             1,
             X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask,
             X.GrabModeAsync,
