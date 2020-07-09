@@ -7,30 +7,31 @@
 	<meta content="biscuitwm, tinywm, xpym, window manager, linux, x11" name="keywords">
 	<link rel="shortcut icon" href="images/logo-inline-32.png">
 	<style>
+		@import url('https://fonts.googleapis.com/css2?family=Fira+Mono:wght@400;700&family=Fira+Sans:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
 		:root {
-			--BACKGROUND: white;
+			--BODY-FONT-FAMILY: 'Fira Sans', Helvetica, Arial, sans-serif;
+			--CODEBLOCK-FONT-FAMILY: 'Fira Mono', monospace;
+			--BORDER-RADIUS: 8px;
+			--BACKGROUND: ivory;
 			--FOREGROUND: black;
-
 			--FOOTER-FOREGROUND: dimgray;
-
 			--LINK-FOREGROUND: sienna;
-
-			--CODEBLOCK-BACKGROUND: beige;
-			--CODEBLOCK-LEAD-FOREGROUND: sienna;
-
+			--CODEBLOCK-BACKGROUND: lemonchiffon;
+			--CODEBLOCK-BORDER-COLOR: sienna;
 			--WARNING-BACKGROUND: mistyrose;
-			--WARNING-LEAD-FOREGROUND: crimson;
+			--WARNING-BORDER-COLOR: crimson;
 		}
 
 		html, body {
 			max-width: 800px;
 			margin: auto;
-			padding: 16px;
+			padding: 8px;
 			box-sizing: border-box;
 			background: var(--BACKGROUND);
 			color: var(--FOREGROUND);
-			font-size: 16px;
-			font-family: Helvetica, Arial, sans-serif;
+			font-size: 18px;
+			font-family: var(--BODY-FONT-FAMILY);
 			line-height: 1.5;
 		}
 		header, footer {
@@ -50,7 +51,6 @@
 			margin-top: 24px;
 			margin-bottom: 64px;
 			color: var(--FOOTER-FOREGROUND);
-			font-size: 14px;
 		}
 		a {
 			color: var(--LINK-FOREGROUND);
@@ -62,11 +62,12 @@
 		.warning {
 			padding: 16px;
 			background: var(--WARNING-BACKGROUND);
-			border-left: 8px solid var(--WARNING-LEAD-FOREGROUND);
-			border-radius: 5px;
+			border: 1px solid var(--WARNING-BORDER-COLOR);
+			border-left: 8px solid var(--WARNING-BORDER-COLOR);
+			border-radius: var(--BORDER-RADIUS);
 		}
 		.warning-lead {
-			color: var(--WARNING-LEAD-FOREGROUND);
+			color: var(--WARNING-BORDER-COLOR);
 			font-weight: bold;
 		}
 		.copyrights {
@@ -75,25 +76,41 @@
 			padding: 0;
 		}
 		.codeblock {
-			display: inline;
+			display: inline-block;
+			margin: 0;
+			margin-left: 2px;
+			margin-right: 2px;
 			padding: 4px;
-			font-family: monospace;
+			padding-left: 8px;
+			padding-right: 8px;
+			font-family: var(--CODEBLOCK-FONT-FAMILY);
 			background: var(--CODEBLOCK-BACKGROUND);
-			border-radius: 5px;
+			border: 1px solid var(--CODEBLOCK-BORDER-COLOR);
+			border-radius: var(--BORDER-RADIUS);
+		}
+		p .codeblock {
+			padding: 0;
+			padding-left: 6px;
+			padding-right: 6px;
+		}
+		li .codeblock {
+			margin-bottom: 4px;
 		}
 		.codeblock-big {
 			display: block;
 			width: 100%;
 			margin: 0;
+			margin-left: 0;
+			margin-right: 0;
 			margin-bottom: 32px;
 			padding: 16px;
 			box-sizing: border-box;
-			border-left: 8px solid var(--CODEBLOCK-LEAD-FOREGROUND);
+			border-left: 8px solid var(--CODEBLOCK-BORDER-COLOR);
 		}
 		.img-bordered {
 			box-sizing: border-box;
 			border: 1px solid var(--LINK-FOREGROUND);
-			border-radius: 8px;
+			border-radius: var(--BORDER-RADIUS);
 		}
 		.float {
 			position: fixed;
