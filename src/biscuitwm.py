@@ -159,10 +159,11 @@ class DeskbarItem(object):
 
 class Deskbar(object):
     def __init__(
-            self, dpy, dpy_root, screen, display_dimensions,
+            self, ewmh, dpy, dpy_root, screen, display_dimensions,
             wm_window_type, wm_window_types, wm_state, wm_window_status,
             prefs, session_info
     ):
+        self.ewmh = ewmh
         self.dpy = dpy
         self.dpy_root = dpy_root
         self.screen = screen
@@ -347,6 +348,10 @@ class Deskbar(object):
             [self.wm_window_types["dock"]],
             X.PropModeReplace
         )
+        self.ewmh.setWmState(self.deskbar, 1, "_NET_WM_DESKTOP")
+        self.ewmh.setWmState(self.deskbar, 1, "_NET_WM_STATE_SKIP_TASKBAR")
+        self.ewmh.setWmState(self.deskbar, 1, "_NET_WM_STATE_ABOVE")
+
         self.deskbar.map()  # Draw deskbar
         self.set_timestamp()  # Set initial timestamp
         self.set_memory_usage()  # Set initial memory usage percentage
@@ -354,28 +359,6 @@ class Deskbar(object):
         self.start_repeated_events()  # Start deskbar updates
 
     def update(self):
-        self.deskbar.change_property(
-            self.wm_state,
-            Xatom.ATOM,
-            32,
-            [self.wm_window_status["desktop"]],
-            X.PropModeReplace
-        )
-        self.deskbar.change_property(
-            self.wm_state,
-            Xatom.ATOM,
-            32,
-            [self.wm_window_status["skip_taskbar"]],
-            X.PropModeReplace
-        )
-        self.deskbar.change_property(
-            self.wm_state,
-            Xatom.ATOM,
-            32,
-            [self.wm_window_status["above"]],
-            X.PropModeReplace
-        )
-        self.deskbar.raise_window()
         self.deskbar.clear_area()
 
         # Leading items
@@ -421,9 +404,10 @@ https://github.com/vulkd/xround
 '''
 class DisplayCorners(object):
     def __init__(
-            self, dpy, dpy_root, screen, display_dimensions,
+            self, ewmh, dpy, dpy_root, screen, display_dimensions,
             wm_window_type, wm_window_types, wm_state, wm_window_status
     ):
+        self.ewmh = ewmh
         self.dpy = dpy
         self.dpy_root = dpy_root
         self.screen = screen
@@ -441,7 +425,6 @@ class DisplayCorners(object):
         self.corners = ['nw', 'ne', 'se', 'sw']
 
         self.display_corners = None
-        self.display_corners_update_rt = RepeatedTimer(1, self.update)
 
         self.has_run = False
 
@@ -489,37 +472,16 @@ class DisplayCorners(object):
         self.display_corners.shape_select_input(0)
         self.display_corners.change_property(self.wm_window_type, Xatom.ATOM, 32, [self.wm_window_types["dock"]],
                                              X.PropModeReplace)
+
+        self.ewmh.setWmState(self.display_corners, 1, "_NET_WM_DESKTOP")
+        self.ewmh.setWmState(self.display_corners, 1, "_NET_WM_STATE_SKIP_TASKBAR")
+        self.ewmh.setWmState(self.display_corners, 1, "_NET_WM_STATE_ABOVE")
+
         self.display_corners.map()
-        self.display_corners_update_rt.start()
+        self.update()
 
     def update(self):
-        self.display_corners.change_property(
-            self.wm_state,
-            Xatom.ATOM,
-            32,
-            [self.wm_window_status["desktop"]],
-            X.PropModeReplace
-        )
-        self.display_corners.change_property(
-            self.wm_state,
-            Xatom.ATOM,
-            32,
-            [self.wm_window_status["skip_taskbar"]],
-            X.PropModeReplace
-        )
-        self.display_corners.change_property(
-            self.wm_state,
-            Xatom.ATOM,
-            32,
-            [self.wm_window_status["above"]],
-            X.PropModeReplace
-        )
-
-    def raise_window(self):
         self.display_corners.raise_window()
-
-    def stop(self):
-        self.display_corners_update_rt.stop()
 
 
 class Preferences(object):
@@ -1145,7 +1107,7 @@ class WindowManager(object):
                     self.ewmh.setWmState(ev.window, 0, "_NET_WM_STATE_MAXIMIZED_HORIZ")
 
             if self.display_corners is not None:
-                self.display_corners.raise_window()
+                self.display_corners.update()
             self.dpy.flush()
 
     def main(self):
@@ -1190,7 +1152,7 @@ class WindowManager(object):
         # Draw deskbar
         if self.prefs.deskbar["enabled"] == 1:
             self.deskbar = Deskbar(
-                self.dpy, self.dpy_root, self.screen, self.display_dimensions,
+                self.ewmh, self.dpy, self.dpy_root, self.screen, self.display_dimensions,
                 self.wm_window_type, self.wm_window_types,
                 self.wm_state, self.wm_window_status,
                 self.prefs, self.session_info
@@ -1200,13 +1162,11 @@ class WindowManager(object):
         # Draw display corners
         if self.prefs.xround["enabled"] == 1:
             self.display_corners = DisplayCorners(
-                self.dpy, self.dpy_root, self.screen, self.display_dimensions,
+                self.ewmh, self.dpy, self.dpy_root, self.screen, self.display_dimensions,
                 self.wm_window_type, self.wm_window_types,
                 self.wm_state, self.wm_window_status
             )
             self.display_corners.draw()
-
-        self.update_active_window_title_rt.start()
 
         try:
             self.loop()
