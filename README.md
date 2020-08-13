@@ -8,12 +8,12 @@ Development and testing is being done in a Debian 10.4.0 virtual machine with Py
 **WARNING:** This project is still in alpha. It is not recommended to run BiscuitWM on a production machine without using Xephyr to run an embedded X session!
 
 ## Install guide
-Before running BiscuitWM, you must have the `python-xlib`, `x11util`, and `perlcompat` libraries installed. To do so, use the `pip` Python package manager to install it:
+Before running BiscuitWM, you must have the `python-xlib`, `x11util`, `perlcompat`, and `ewmh` libraries installed. To do so, use the `pip` Python package manager to install it:
 ```bash
 sudo apt update
 sudo apt install python3 python3-pip
 
-python3 -m pip install python-xlib x11util perlcompat
+python3 -m pip install python-xlib x11util perlcompat ewmh
 ```
 To install BiscuitWM on your system, run the `install.sh` as `sudo` (as we need to `chmod` the scripts to run the Python files):
 ```bash
