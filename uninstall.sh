@@ -1,6 +1,6 @@
 #!/bin/sh
 # Remove BiscuitWM
-rm /usr/bin/biscuitwm.py
+rm -r /usr/bin/biscuitwm-src
 rm /usr/bin/biscuitwm
 # Remove session entry
 rm /usr/bin/biscuitwm-session
