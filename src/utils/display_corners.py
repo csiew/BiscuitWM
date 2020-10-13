@@ -5,7 +5,7 @@ https://github.com/vulkd/xround
 from Xlib import X, Xatom
 from Xlib.ext import shape
 from x11util import load_font
-from pixel_palette import PixelPalette
+from models.pixel_palette import PixelPalette
 
 from globals import *
 

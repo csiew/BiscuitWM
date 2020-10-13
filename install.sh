@@ -1,7 +1,7 @@
 #!/bin/sh
 # Copy BiscuitWM
 mkdir /usr/bin/biscuitwm-src
-cp src/* /usr/bin/biscuitwm-src/
+cp -r src/* /usr/bin/biscuitwm-src/
 cp assets/biscuitwm /usr/bin/biscuitwm
 # Copy session entries
 cp assets/biscuitwm-session /usr/bin/biscuitwm-session

@@ -1,9 +1,9 @@
 import os
 from Xlib import X, Xatom
 from x11util import load_font
-from pixel_palette import PixelPalette
-from repeated_timer import RepeatedTimer
-from deskbar_item import DeskbarItem
+from models.pixel_palette import PixelPalette
+from utils.repeated_timer import RepeatedTimer
+from components.deskbar_item import DeskbarItem
 
 from globals import *
 

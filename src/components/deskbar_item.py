@@ -1,4 +1,4 @@
-from repeated_timer import RepeatedTimer
+from utils.repeated_timer import RepeatedTimer
 
 
 class DeskbarItem(object):

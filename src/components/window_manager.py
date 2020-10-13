@@ -6,10 +6,10 @@ import subprocess
 from Xlib import X, display, XK, Xatom, Xcursorfont, error
 from ewmh import EWMH
 
-from pixel_palette import PixelPalette
-from repeated_timer import RepeatedTimer
-from deskbar import Deskbar
-from display_corners import DisplayCorners
+from models.pixel_palette import PixelPalette
+from utils.repeated_timer import RepeatedTimer
+from components.deskbar import Deskbar
+from utils.display_corners import DisplayCorners
 
 
 def run_command(command_string):
