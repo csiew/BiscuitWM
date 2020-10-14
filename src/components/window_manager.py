@@ -1,13 +1,10 @@
-# requires python-xlib
-
 import os
 import sys
 import subprocess
 from Xlib import X, display, XK, Xatom, Xcursorfont, error
-from Xlib.ext import record
-from Xlib.protocol import rq
 from ewmh import EWMH
 
+from globals import *
 from models.pixel_palette import PixelPalette
 from utils.repeated_timer import RepeatedTimer
 from components.deskbar import Deskbar
@@ -91,19 +88,6 @@ class WindowManager(object):
         self.set_cursor(self.dpy_root)
         XK.load_keysym_group('xf86')
         self.set_key_aliases()
-        self.recognised_events = {
-            X.CreateNotify: "CreateNotify",
-            X.DestroyNotify: "DestroyNotify",
-            X.MapNotify: "MapNotify",
-            X.FocusIn: "FocusIn",
-            X.FocusOut: "FocusOut",
-            X.EnterNotify: "EnterNotify",
-            X.LeaveNotify: "LeaveNotify",
-            X.MotionNotify: "MotionNotify",
-            X.KeyPress: "KeyPress",
-            X.KeyRelease: "KeyRelease",
-            X.ButtonPress: "ButtonPress"
-        }
 
     ### QUERY METHODS
 
@@ -451,8 +435,8 @@ class WindowManager(object):
     # DEBUG
 
     def print_event_type(self, ev):
-        if ev.type in self.recognised_events.keys():
-            print(self.recognised_events[ev.type] + " event")
+        if ev.type in recognised_events.keys():
+            print(recognised_events[ev.type] + " event")
 
     # SPECIAL
 
@@ -503,8 +487,10 @@ class WindowManager(object):
             run_command(self.deskbar.command_string)
             self.deskbar.toggle_launcher(state=False)
         else:
-            self.deskbar.command_string += self.keycode_to_string(ev.detail)
-            self.deskbar.update()
+            key_string = self.keycode_to_string(ev.detail)
+            if key_string:
+                self.deskbar.command_string += key_string
+                self.deskbar.update()
 
     def action_bindings(self, ev):
         if ev.detail in self.key_alias.values():

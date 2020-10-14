@@ -1,3 +1,6 @@
+from Xlib import X
+
+
 FONT_OPTIONS = {
     1: '-adobe-helvetica-bold-r-normal--*-120-*-*-*-*-iso8859-*',
     2: '5x7',
@@ -16,3 +19,23 @@ FONT_OPTIONS = {
 }
 FONT_NAME = FONT_OPTIONS[1]
 CONFIG_FILE_PATH = "/etc/biscuitwm/biscuitwm.json"
+recognised_events = {
+    X.CreateNotify: "CreateNotify",
+    X.DestroyNotify: "DestroyNotify",
+    X.MapNotify: "MapNotify",
+    X.FocusIn: "FocusIn",
+    X.FocusOut: "FocusOut",
+    X.EnterNotify: "EnterNotify",
+    X.LeaveNotify: "LeaveNotify",
+    X.MotionNotify: "MotionNotify",
+    X.KeyPress: "KeyPress",
+    X.KeyRelease: "KeyRelease",
+    X.ButtonPress: "ButtonPress"
+}
+controller_key_names = [
+    'BackSpace',
+    'Control',
+    'Alt',
+    'Shift'
+    'Tab'
+]
