@@ -17,11 +17,11 @@ python3 -m pip install python-xlib x11util perlcompat ewmh
 ```
 To install BiscuitWM on your system, run the `install.sh` as `sudo` (as we need to `chmod` the scripts to run the Python files):
 ```bash
-sudo sh install.sh
+sudo sh scripts/biscuitwm-install.sh
 ```
 To run the uninstall script, run the `uninstall.sh` script as `sudo` as well:
 ```bash
-sudo sh uninstall.sh
+sudo sh scripts/biscuitwm-uninstall.sh
 ```
 
 ## User guide
@@ -45,6 +45,10 @@ Note that whichever window your cursor is hovering over will be the window with 
 - `Alt + Tab`: Cycle through all windows
 - `Alt + Left Click` on deskbar: Cycle through all windows
 - `Alt + Right Click` on deskbar: Show number of windows
+#### Launcher
+- `Alt + Space`: Enables launcher mode in the top bar
+- `Return`: Enter command and exit top bar launcher
+- `Esc`: Exit launcher mode
 #### Session
 - `Alt + X`: Launch a new terminal window
 - `Alt + Esc`: Exit BiscuitWM session
@@ -75,17 +79,6 @@ Once you're done with testing, you may want to just reuse the same terminal for 
 DISPLAY=:0
 ```
 ...to resume sending commands to your current Xsession.
-
-### Partially automated*
-Open a terminal in the same directory as the BiscuitWM files and run:
-```bash
-sudo sh run_dev.sh
-```
-Then start the BiscuitWM session:
-```bash
-biscuitwm-session
-```
-The `run_dev.sh` script will be improved in the future.
 
 ## Acknowledgements
 See the [acknowledgements section of the website](https://csiew.github.io/BiscuitWM#acknowledgements) for more details.

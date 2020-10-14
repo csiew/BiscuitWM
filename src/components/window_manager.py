@@ -448,6 +448,7 @@ class WindowManager(object):
     def keycode_to_string(self, detail):
         return XK.keysym_to_string(self.dpy.keycode_to_keysym(detail, 0))
 
+    # From: https://stackoverflow.com/a/43880743
     def keycode_to_key(self, keycode, state):
         i = 0
         if state & X.ShiftMask:
@@ -456,6 +457,7 @@ class WindowManager(object):
             i += 2
         return self.dpy.keycode_to_keysym(keycode, i)
 
+    # From: https://stackoverflow.com/a/43880743
     def key_to_string(self, key):
         keys = []
         for name in dir(XK):
@@ -465,6 +467,7 @@ class WindowManager(object):
             return " or ".join(keys)
         return "[%d]" % key
 
+    # From: https://stackoverflow.com/a/43880743
     def keycode_to_string_mod(self, keycode, state):
         return self.key_to_string(self.keycode_to_key(keycode, state))
 
