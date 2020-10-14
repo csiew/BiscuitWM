@@ -2,6 +2,7 @@
 Thanks to vulkd for creating xround
 https://github.com/vulkd/xround
 """
+import sys
 from Xlib import X, Xatom
 from Xlib.ext import shape
 from x11util import load_font
@@ -91,4 +92,6 @@ class DisplayCorners(object):
     def update(self):
         self.display_corners.raise_window()
 
+    def stop(self):
+        sys.exit(0)
 

@@ -4,6 +4,8 @@ import os
 import sys
 import subprocess
 from Xlib import X, display, XK, Xatom, Xcursorfont, error
+from Xlib.ext import record
+from Xlib.protocol import rq
 from ewmh import EWMH
 
 from models.pixel_palette import PixelPalette
@@ -16,6 +18,7 @@ def run_command(command_string):
     try:
         subprocess.Popen(command_string)
     except:
+        print(command_string)
         print("Unable to perform command")
 
 
@@ -47,6 +50,7 @@ class WindowManager(object):
         self.window_order = -1
 
         self.key_alias = {}
+        self.keys_down = set()
 
         self.start = None
         self.attr = None
@@ -85,6 +89,21 @@ class WindowManager(object):
         self.update_active_window_title_rt.stop()
 
         self.set_cursor(self.dpy_root)
+        XK.load_keysym_group('xf86')
+        self.set_key_aliases()
+        self.recognised_events = {
+            X.CreateNotify: "CreateNotify",
+            X.DestroyNotify: "DestroyNotify",
+            X.MapNotify: "MapNotify",
+            X.FocusIn: "FocusIn",
+            X.FocusOut: "FocusOut",
+            X.EnterNotify: "EnterNotify",
+            X.LeaveNotify: "LeaveNotify",
+            X.MotionNotify: "MotionNotify",
+            X.KeyPress: "KeyPress",
+            X.KeyRelease: "KeyRelease",
+            X.ButtonPress: "ButtonPress"
+        }
 
     ### QUERY METHODS
 
@@ -432,31 +451,8 @@ class WindowManager(object):
     # DEBUG
 
     def print_event_type(self, ev):
-        event = ev.type
-        msg = None
-        if event == X.CreateNotify:
-            msg = "CreateNotify"
-        elif event == X.DestroyNotify:
-            msg = "DestroyNotify"
-        elif event == X.MapNotify:
-            msg = "MapNotify"
-        elif event == X.FocusIn:
-            msg = "FocusIn"
-        elif event == X.FocusOut:
-            msg = "FocusIn"
-        elif event == X.EnterNotify:
-            msg = "EnterNotify"
-        elif event == X.LeaveNotify:
-            msg = "LeaveNotify"
-        elif event == X.MotionNotify:
-            msg = "MotionNotify"
-        elif event == X.KeyPress:
-            msg = "KeyPress"
-        elif event == X.ButtonPress:
-            msg = "ButtonPress"
-        else:
-            return
-        print(msg + " event")
+        if ev.type in self.recognised_events.keys():
+            print(self.recognised_events[ev.type] + " event")
 
     # SPECIAL
 
@@ -468,6 +464,26 @@ class WindowManager(object):
     def keycode_to_string(self, detail):
         return XK.keysym_to_string(self.dpy.keycode_to_keysym(detail, 0))
 
+    def keycode_to_key(self, keycode, state):
+        i = 0
+        if state & X.ShiftMask:
+            i += 1
+        if state & X.Mod1Mask:
+            i += 2
+        return self.dpy.keycode_to_keysym(keycode, i)
+
+    def key_to_string(self, key):
+        keys = []
+        for name in dir(XK):
+            if name.startswith("XK_") and getattr(XK, name) == key:
+                keys.append(name.lstrip("XK_").replace("_L", "").replace("_R", ""))
+        if keys:
+            return " or ".join(keys)
+        return "[%d]" % key
+
+    def keycode_to_string_mod(self, keycode, state):
+        return self.key_to_string(self.keycode_to_key(keycode, state))
+
     def set_key_aliases(self):
         keystrings = [
             "x", "q",
@@ -477,7 +493,7 @@ class WindowManager(object):
         for keystring in keystrings:
             self.key_alias[keystring] = self.dpy.keysym_to_keycode(XK.string_to_keysym(keystring))
 
-    def handle_launcher(self, ev):
+    def launcher_bindings(self, ev):
         if ev.detail == self.key_alias["Escape"]:
             self.deskbar.toggle_launcher(state=False)
         elif ev.detail == self.key_alias["BackSpace"] and len(self.deskbar.command_string) > 0:
@@ -487,47 +503,67 @@ class WindowManager(object):
             run_command(self.deskbar.command_string)
             self.deskbar.toggle_launcher(state=False)
         else:
-            try:
-                key_pressed = self.keycode_to_string(ev.detail)
-                if key_pressed is not None:
-                    self.deskbar.command_string += key_pressed
-                    self.deskbar.update()
-            except:
-                print("Invalid key press detection")
+            self.deskbar.command_string += self.keycode_to_string(ev.detail)
+            self.deskbar.update()
 
-    def handle_keypress(self, ev):
+    def action_bindings(self, ev):
         if ev.detail in self.key_alias.values():
-            print("Key is aliased")
+            if ev.child != X.NONE:
+                if ev.detail == self.key_alias["q"]:
+                    self.destroy_window(ev.child)
+                elif ev.detail == self.key_alias["minus"]:
+                    self.resize_window(ev.child, "center")
+                elif ev.detail == self.key_alias["equal"]:
+                    self.resize_window(ev.child, "maximize")
+                elif ev.detail == self.key_alias["bracketleft"]:
+                    self.resize_window(ev.child, "left")
+                elif ev.detail == self.key_alias["bracketright"]:
+                    self.resize_window(ev.child, "right")
+                elif ev.detail == self.key_alias["backslash"]:
+                    self.resize_window(ev.child, "top")
+                elif ev.detail == self.key_alias["slash"]:
+                    self.resize_window(ev.child, "bottom")
+                elif ev.detail == self.key_alias["F1"]:
+                    self.focus_window(ev.window)
+                    self.raise_window(ev.window)
+
             if ev.detail == self.key_alias["x"]:
                 self.start_terminal()
-            elif ev.detail == self.key_alias["q"] and ev.child != X.NONE:
-                self.destroy_window(ev.child)
-            elif ev.detail == self.key_alias["minus"] and ev.child != X.NONE:
-                self.resize_window(ev.child, "center")
-            elif ev.detail == self.key_alias["equal"] and ev.child != X.NONE:
-                self.resize_window(ev.child, "maximize")
-            elif ev.detail == self.key_alias["bracketleft"] and ev.child != X.NONE:
-                self.resize_window(ev.child, "left")
-            elif ev.detail == self.key_alias["bracketright"] and ev.child != X.NONE:
-                self.resize_window(ev.child, "right")
-            elif ev.detail == self.key_alias["backslash"] and ev.child != X.NONE:
-                self.resize_window(ev.child, "top")
-            elif ev.detail == self.key_alias["slash"] and ev.child != X.NONE:
-                self.resize_window(ev.child, "bottom")
-            elif ev.detail == self.key_alias["F1"] and ev.child != X.NONE:
-                self.focus_window(ev.window)
-                self.raise_window(ev.window)
             elif ev.detail == self.key_alias["Tab"]:
                 self.cycle_windows()
             elif ev.detail == self.key_alias["space"]:
                 if self.deskbar is not None:
                     self.deskbar.toggle_launcher(state=True)
+                    self.deskbar.command_string = ''
+                    self.deskbar.update()
+                    self.launcher_bindings(ev)
+                else:
+                    self.start_terminal()
             elif ev.detail == self.key_alias["Escape"]:
                 self.end_session()
-        else:
-            print("Key is not aliased")
 
-    def loop(self):
+    def keypress_handler(self, ev):
+        key_string = self.keycode_to_string_mod(ev.detail, ev.state)
+        if key_string:
+            try:
+                # ev.state == 24 for Alt
+                # ev.state == 25 for Alt + Shift
+                self.keys_down.add(key_string)
+                print("Pressed: " + key_string + " - " + str(self.keys_down))
+            except:
+                print("Unable to add pressed key")
+
+    def keyrelease_handler(self, ev):
+        key_string = self.keycode_to_string_mod(ev.detail, ev.state)
+        if key_string:
+            print(ev.state)
+            try:
+                self.keys_down.remove(key_string)
+                print("Released: " + key_string + " - " + str(self.keys_down))
+            except:
+                print("Unable to remove released key")
+
+    def event_handler(self):
         while 1:
             ev = self.dpy.next_event()
             if self.prefs.dev["debug"] == 1:
@@ -537,10 +573,13 @@ class WindowManager(object):
                 self.set_active_window_title(ev.window)
 
             if ev.type == X.KeyPress:
+                self.keypress_handler(ev)
                 if self.deskbar is not None and self.deskbar.launcher_is_running() is True:
-                    self.handle_launcher(ev)
+                    self.launcher_bindings(ev)
                 else:
-                    self.handle_keypress(ev)
+                    self.action_bindings(ev)
+            elif ev.type == X.KeyRelease:
+                self.keyrelease_handler(ev)
             elif ev.type == X.MapNotify:
                 if self.is_cyclical_window(ev.window):
                     try:
@@ -589,12 +628,22 @@ class WindowManager(object):
                 self.display_corners.update()
             self.dpy.flush()
 
+    # SESSION HANDLER
+
+    def end_session(self):
+        self.update_active_window_title_rt.stop()
+        if self.prefs.deskbar["enabled"] == 1:
+            self.deskbar.stop_repeated_events()
+        if self.prefs.xround["enabled"] == 1:
+            self.display_corners.stop()
+        self.dpy.close()
+        sys.exit(0)
+
     def main(self):
         # Register keyboard and mouse events
-        self.set_key_aliases()
         self.dpy_root.grab_key(
             X.AnyKey,
-            X.Mod1Mask | X.Mod2Mask,
+            X.AnyModifier,
             1,
             X.GrabModeAsync,
             X.GrabModeAsync
@@ -648,16 +697,7 @@ class WindowManager(object):
             self.display_corners.draw()
 
         try:
-            self.loop()
+            self.event_handler()
         except KeyboardInterrupt or error.ConnectionClosedError:
             self.end_session()
             sys.exit(0)
-
-    def end_session(self):
-        self.update_active_window_title_rt.stop()
-        if self.prefs.deskbar["enabled"] == 1:
-            self.deskbar.stop_repeated_events()
-        if self.prefs.xround["enabled"] == 1:
-            self.display_corners.stop()
-        self.dpy.close()
-        sys.exit(0)

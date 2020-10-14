@@ -14,5 +14,5 @@ FONT_OPTIONS = {
     13: '8x13',
     14: '6x13'
 }
-FONT_NAME = FONT_OPTIONS[5]
+FONT_NAME = FONT_OPTIONS[1]
 CONFIG_FILE_PATH = "/etc/biscuitwm/biscuitwm.json"
