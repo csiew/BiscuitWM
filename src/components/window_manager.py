@@ -13,10 +13,9 @@ from utils.display_corners import DisplayCorners
 
 def run_command(command_string):
     try:
-        subprocess.Popen(command_string)
-    except:
-        print(command_string)
-        print("Unable to perform command")
+        subprocess.Popen(command_string.lstrip(' '), stdout=subprocess.PIPE)
+    except Exception as e:
+        print(e)
 
 
 class WindowManager(object):
