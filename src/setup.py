@@ -19,7 +19,7 @@ setup(
     author='csiew',
     author_email='',
     description='The weirdly delectable window manager',
-    install_requires=['python-xlib', 'x11util', 'perlcompat', 'ewmh'],
+    install_requires=['python-xlib', 'x11util', 'perlcompat', 'ewmh', 'Xlib'],
     scripts=['scripts/setup.sh', 'scripts/purge.sh'],
     cmdclass={'install': MyInstall}
 )

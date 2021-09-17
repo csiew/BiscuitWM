@@ -1,6 +1,14 @@
 # ![alt text](docs/images/logo-inline-32.png "BiscuitWM logo") BiscuitWM
 ![alt text](docs/images/screenshot4.png "BiscuitWM desktop")
 
+## Links
+* [Website](https://csiew.github.io/biscuitwm)
+* [Repository](https://github.com/csiew/BiscuitWM)
+* [Report issues](https://github.com/csiew/BiscuitWM/issues)
+* [Trello board](https://trello.com/b/uFmpk6ZR/biscuitwm)
+
+## Overview
+
 **BiscuitWM** is an X11 window manager based on the Python version of [TinyWM](https://github.com/mackstann/tinywm) by [Nick Welch](https://github.com/mackstann) and the [xpywm](https://github.com/h-ohsaki/xpywm) window manager by [Hiroyuki Ohsaki](http://www.lsnl.jp/~ohsaki/). The intent of this window manager project is largely to expand my understanding of the X11 libraries via Python.
 
 Development and testing is being done in a Debian 11 virtual machine with Python 3.9 as the main Python interpreter.
@@ -27,11 +35,14 @@ sudo sh scripts/purge.sh
 ```
 
 ## User guide
+
 At the moment, BiscuitWM follows the hybrid keyboard and mouse driven interaction from TinyWM. Future iterations will seek to add titlebars to allow for mouse-first interactivity.
 
 Note that whichever window your cursor is hovering over will be the window with input focus (and will also be raised). Future iterations will require the window to be raised by clicking on the window.
 
 ### Keyboard shortcuts
+> **WARNING:** As of 17 September 2021, keyboard shortcuts are reportedly unresponsive. A solution for this issue is currently being worked on. [See issue ticket.](https://github.com/csiew/BiscuitWM/issues/4)
+
 #### Moving windows
 - `Alt + Left Click` and drag: Move window
 - `Alt + Right Click` and drag: Resize window
