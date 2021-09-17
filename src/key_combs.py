@@ -15,7 +15,7 @@ session = {
     },
     "exit": {
         pynput.keyboard.Key.alt,
-        pynput.keyboard.KeyCode(char=' ')
+        pynput.keyboard.Key.esc
     },
 }
 
