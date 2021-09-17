@@ -17,13 +17,13 @@ sudo apt install python3 python3-pip
 
 pip3 install -r requirements.txt
 ```
-To install BiscuitWM on your system, run the `install.sh` as `sudo` (as we need to `chmod` the scripts to run the Python files):
+To install BiscuitWM on your system, run the `setup.sh` as `sudo` (as we need to `chmod` the scripts to run the Python files):
 ```bash
-sudo sh scripts/biscuitwm-install.sh
+sudo sh scripts/setup.sh
 ```
-To run the uninstall script, run the `uninstall.sh` script as `sudo` as well:
+To run the uninstall script, run the `purge.sh` script as `sudo` as well:
 ```bash
-sudo sh scripts/biscuitwm-uninstall.sh
+sudo sh scripts/purge.sh
 ```
 
 ## User guide

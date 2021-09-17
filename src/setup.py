@@ -6,7 +6,7 @@ import os
 class MyInstall(install):
     def run(self):
         install.run(self)
-        os.system('sudo sh scripts/biscuitwm-install.sh')
+        os.system('sudo sh scripts/setup.sh')
 
 
 setup(
@@ -20,6 +20,6 @@ setup(
     author_email='',
     description='The weirdly delectable window manager',
     install_requires=['python-xlib', 'x11util', 'perlcompat', 'ewmh'],
-    scripts=['scripts/biscuitwm-install.sh', 'scripts/biscuitwm-uninstall.sh'],
+    scripts=['scripts/setup.sh', 'scripts/purge.sh'],
     cmdclass={'install': MyInstall}
 )
