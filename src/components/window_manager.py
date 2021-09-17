@@ -1,6 +1,7 @@
 import os
 import sys
 import subprocess
+import pynput
 from Xlib import X, display, XK, Xatom, Xcursorfont, error
 from ewmh import EWMH
 
