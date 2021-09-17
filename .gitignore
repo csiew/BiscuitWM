@@ -1,4 +1,6 @@
 .idea
 .vscode
-xpywm
 .DS_Store
+
+xpywm
+venv
