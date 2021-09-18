@@ -4,6 +4,7 @@ import subprocess
 from Xlib import X, display, XK, Xatom, Xcursorfont, error
 from ewmh import EWMH
 
+import key_combs
 from globals import *
 from models.pixel_palette import PixelPalette
 from utils.repeated_timer import RepeatedTimer
@@ -47,6 +48,7 @@ class WindowManager(object):
 
         self.key_alias = {}
         self.keys_down = set()
+        self.current_modifier_keys = set()
 
         self.start = None
         self.attr = None
@@ -494,43 +496,45 @@ class WindowManager(object):
                 self.deskbar.command_string += key_string
                 self.deskbar.update()
 
-    def action_bindings(self, ev):
-        if ev.detail in self.key_alias.values():
-            if ev.child != X.NONE:
-                if ev.detail == self.key_alias["q"]:
-                    self.destroy_window(ev.child)
-                elif ev.detail == self.key_alias["minus"]:
-                    self.resize_window(ev.child, "center")
-                elif ev.detail == self.key_alias["equal"]:
-                    self.resize_window(ev.child, "maximize")
-                elif ev.detail == self.key_alias["bracketleft"]:
-                    self.resize_window(ev.child, "left")
-                elif ev.detail == self.key_alias["bracketright"]:
-                    self.resize_window(ev.child, "right")
-                elif ev.detail == self.key_alias["backslash"]:
-                    self.resize_window(ev.child, "top")
-                elif ev.detail == self.key_alias["slash"]:
-                    self.resize_window(ev.child, "bottom")
-                elif ev.detail == self.key_alias["F1"]:
-                    self.focus_window(ev.window)
-                    self.raise_window(ev.window)
+    def start_launcher(self, ev):
+        if self.deskbar is not None:
+            self.deskbar.toggle_launcher(state=True)
+            self.deskbar.command_string = ''
+            self.deskbar.update()
+            self.launcher_bindings(ev)
+        else:
+            self.start_terminal()
 
-            if ev.detail == self.key_alias["x"]:
-                self.start_terminal()
-            elif ev.detail == self.key_alias["Tab"]:
-                self.cycle_windows()
-            elif ev.detail == self.key_alias["space"]:
-                if self.deskbar is not None:
-                    self.deskbar.toggle_launcher(state=True)
-                    self.deskbar.command_string = ''
-                    self.deskbar.update()
-                    self.launcher_bindings(ev)
-                else:
-                    self.start_terminal()
-            elif ev.detail == self.key_alias["Escape"]:
-                self.end_session()
+    def focus_raise(self, ev):
+        self.focus_window(ev.window)
+        self.raise_window(ev.window)
 
-    def keypress_handler(self, ev):
+    def action_bindings(self, mapped_event_name, ev):
+        try:
+            if ev.detail in self.key_alias.values():
+                if ev.child != X.NONE:
+                    window_event = {
+                        "close": lambda: self.destroy_window(ev.child),
+                        "maximize": lambda: self.resize_window(ev.child, "maximize"),
+                        "move_center": lambda: self.resize_window(ev.child, "center"),
+                        "move_left": lambda: self.resize_window(ev.child, "left"),
+                        "move_right": lambda: self.resize_window(ev.child, "right"),
+                        "move_top": lambda: self.resize_window(ev.child, "top"),
+                        "move_bottom": lambda: self.resize_window(ev.child, "bottom"),
+                        "focus": lambda: self.focus_raise(ev),
+                    }[mapped_event_name]
+                    window_event()
+                session_event = {
+                    "terminal": self.start_terminal,
+                    "window_cycle": self.cycle_windows,
+                    "launcher": lambda: self.start_launcher(ev),
+                    "exit": self.end_session,
+                }[mapped_event_name]
+                session_event()
+        except Exception as e:
+            print(e)
+
+    def on_key_press(self, ev):
         key_string = self.keycode_to_string_mod(ev.detail, ev.state)
         if key_string:
             try:
@@ -538,18 +542,23 @@ class WindowManager(object):
                 # ev.state == 25 for Alt + Shift
                 self.keys_down.add(key_string)
                 print("Pressed: " + key_string + " - " + str(self.keys_down))
-            except:
-                print("Unable to add pressed key")
+                mapped_event_name = list(key_combs.session.keys())[list(key_combs.session.values()).index(self.keys_down)]
+                if self.deskbar is None or self.deskbar.launcher_is_running() is False:
+                    self.action_bindings(mapped_event_name, ev)
+            except Exception as e:
+                print(e)
+        if self.deskbar is not None and self.deskbar.launcher_is_running() is True:
+            self.launcher_bindings(ev)
 
-    def keyrelease_handler(self, ev):
+    def on_key_release(self, ev):
         key_string = self.keycode_to_string_mod(ev.detail, ev.state)
         if key_string:
             print(ev.state)
             try:
                 self.keys_down.remove(key_string)
                 print("Released: " + key_string + " - " + str(self.keys_down))
-            except:
-                print("Unable to remove released key")
+            except Exception as e:
+                print(e)
 
     def event_handler(self):
         while 1:
@@ -561,13 +570,9 @@ class WindowManager(object):
                 self.set_active_window_title(ev.window)
 
             if ev.type == X.KeyPress:
-                self.keypress_handler(ev)
-                if self.deskbar is not None and self.deskbar.launcher_is_running() is True:
-                    self.launcher_bindings(ev)
-                else:
-                    self.action_bindings(ev)
+                self.on_key_press(ev)
             elif ev.type == X.KeyRelease:
-                self.keyrelease_handler(ev)
+                self.on_key_release(ev)
             elif ev.type == X.MapNotify:
                 if self.is_cyclical_window(ev.window):
                     try:
