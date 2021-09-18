@@ -496,7 +496,7 @@ class WindowManager(object):
                 self.deskbar.command_string += key_string
                 self.deskbar.update()
 
-    def launcher(self, ev):
+    def start_launcher(self, ev):
         if self.deskbar is not None:
             self.deskbar.toggle_launcher(state=True)
             self.deskbar.command_string = ''
@@ -527,7 +527,7 @@ class WindowManager(object):
                 session_event = {
                     "terminal": self.start_terminal,
                     "window_cycle": self.cycle_windows,
-                    "launcher": lambda: self.launcher(ev),
+                    "launcher": lambda: self.start_launcher(ev),
                     "exit": self.end_session,
                 }[mapped_event_name]
                 session_event()
