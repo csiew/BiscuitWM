@@ -6,6 +6,7 @@ from ewmh import EWMH
 
 import key_combs
 from globals import *
+from models.window_stack import WindowStack
 from models.pixel_palette import PixelPalette
 from utils.repeated_timer import RepeatedTimer
 from components.deskbar import Deskbar
@@ -232,6 +233,11 @@ class WindowManager(object):
 
         if self.prefs.dev["debug"] == 1:
             print("Found window: %s", self.get_window_shortname(window))
+
+        # Initiate window stack
+        window_stack = WindowStack(body=window)
+
+        # Manage window
         self.managed_windows.append(window)
         self.exposed_windows.append(window)
         self.window_order = len(self.managed_windows) - 1
@@ -241,7 +247,7 @@ class WindowManager(object):
         mask = X.EnterWindowMask | X.LeaveWindowMask
         window.change_attributes(event_mask=mask)
 
-        self.decorate_window(window)
+        self.decorate_window(window_stack)
 
     def unmanage_window(self, window):
         if self.is_managed_window(window):
@@ -369,31 +375,72 @@ class WindowManager(object):
             else:
                 print("Invalid window position: " + position)
 
-    def decorate_window(self, window):
-        self.set_cursor(window)
-        if self.is_dock(window) is False:
-            window_dimensions = self.get_window_geometry(window)
-            window_width, window_height = window_dimensions.width, window_dimensions.height
-            window_x = 5
-            window_y = 25
+    def decorate_window(self, window_stack):
+        self.set_cursor(window_stack.body)
+        if self.is_dock(window_stack.body) is False:
+            body_dimensions = self.get_window_geometry(window_stack.body)
+            body_width, body_height = body_dimensions.width, body_dimensions.height
+
+            # Generate window_stack frame
+            window_stack.frame = self.dpy_root.create_window(
+                8, 8, body_width, body_height + 24, 1,
+                self.screen.root_depth,
+                background_pixel=self.pixel_palette.get_named_pixel("white")
+            )
+            window_stack.frame.map()
+            window_stack.body.reparent(window_stack.frame, 0, 24)
+
+            frame_dimensions = self.get_window_geometry(window_stack.frame)
+            frame_width, frame_height = frame_dimensions.width, frame_dimensions.height
+            frame_x = 5
+            frame_y = 25
+
+            # Generate window_stack titlebar
+            window_stack.titlebar = self.dpy_root.create_window(
+                0, 0, frame_width, 24, 0,
+                self.screen.root_depth,
+                background_pixel=self.pixel_palette.get_named_pixel(self.prefs.appearance["active_window_border_color"])
+            )
+            window_stack.titlebar.reparent(window_stack.frame, 0, 0)
+            window_stack.titlebar.map()
+
+            # Reposition window according to configuration
             if self.prefs.placement["auto_window_placement"] == 1:
                 # Move new window out of the way of the deskbar
                 if self.prefs.placement["auto_window_fit"] == 1:
                     # Resize window to fit the screen
-                    if window_dimensions.width + window_x >= self.display_dimensions.width:
-                        window_width -= window_x * 2
-                    if window_dimensions.height + window_y >= self.display_dimensions.height:
-                        window_height -= window_y * 2
+                    if frame_width + frame_x >= self.display_dimensions.width:
+                        frame_width -= frame_x * 2
+                    if frame_height + frame_y >= self.display_dimensions.height:
+                        frame_height -= frame_y * 2
                 if self.prefs.placement["center_window_placement"] == 1:
-                    window_x = (self.display_dimensions.width - window_width) // 2
-                    window_y = (self.display_dimensions.height - window_height) // 2
-                window.configure(
-                    x=window_x,
-                    y=window_y,
-                    width=window_width,
-                    height=window_height
-                )
-            self.set_unfocus_window_border(window)
+                    frame_x = (self.display_dimensions.width - frame_width) // 2
+                    frame_y = (self.display_dimensions.height - frame_height) // 2
+
+            # Configure window_stack
+            window_stack.frame.configure(
+                x=frame_x,
+                y=frame_y,
+                width=frame_width,
+                height=frame_height
+            )
+            window_stack.titlebar.configure(
+                x=0,
+                y=0,
+                width=frame_width,
+                height=24
+            )
+            window_stack.body.configure(
+                x=0,
+                y=24,
+                width=frame_width,
+                height=frame_height - 24
+            )
+            frame_attributes = window_stack.frame.get_attributes()
+            body_attributes = window_stack.body.get_attributes()
+            print(frame_attributes)
+            print(body_attributes)
+            self.set_unfocus_window_border(window_stack.frame)
 
     def set_unfocus_window_border(self, window):
         if not self.is_dock(window):
