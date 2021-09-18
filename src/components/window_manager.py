@@ -524,17 +524,27 @@ class WindowManager(object):
                         "focus": lambda: self.focus_raise(ev),
                     }[mapped_event_name]
                     window_event()
-                session_event = {
-                    "terminal": self.start_terminal,
-                    "window_cycle": self.cycle_windows,
-                    "launcher": lambda: self.start_launcher(ev),
-                    "exit": self.end_session,
-                }[mapped_event_name]
-                session_event()
+        except Exception as e:
+            print(e)
+
+        try:
+            session_event = {
+                "terminal": self.start_terminal,
+                "window_cycle": self.cycle_windows,
+                "launcher": lambda: self.start_launcher(ev),
+                "exit": self.end_session,
+            }[mapped_event_name]
+            session_event()
         except Exception as e:
             print(e)
 
     def on_key_press(self, ev):
+        try:
+            if ev.child != X.NONE:
+                ev.child.send_event(ev)
+        except Exception as e:
+            print(e)
+
         key_string = self.keycode_to_string_mod(ev.detail, ev.state)
         if key_string:
             try:
@@ -556,6 +566,7 @@ class WindowManager(object):
             print(ev.state)
             try:
                 self.keys_down.clear()
+                self.dpy.ungrab_keyboard(X.CurrentTime)
                 print("Released keys")
             except Exception as e:
                 print(e)
@@ -563,6 +574,7 @@ class WindowManager(object):
     def event_handler(self):
         while 1:
             ev = self.dpy.next_event()
+
             if self.prefs.dev["debug"] == 1:
                 self.print_event_type(ev)
 
