@@ -555,8 +555,8 @@ class WindowManager(object):
         if key_string:
             print(ev.state)
             try:
-                self.keys_down.remove(key_string)
-                print("Released: " + key_string + " - " + str(self.keys_down))
+                self.keys_down.clear()
+                print("Released keys")
             except Exception as e:
                 print(e)
 
