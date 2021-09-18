@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 from Xlib import X, display, XK, Xatom, Xcursorfont, error
+from x11util import load_font
 from ewmh import EWMH
 
 import key_combs
@@ -375,6 +376,11 @@ class WindowManager(object):
             else:
                 print("Invalid window position: " + position)
 
+    def get_string_physical_width(self, text):
+        font = self.dpy.open_font(FONT_NAME)
+        result = font.query_text_extents(text.encode())
+        return result.overall_width
+
     def decorate_window(self, window_stack):
         self.set_cursor(window_stack.body)
         if self.is_dock(window_stack.body) is False:
@@ -403,6 +409,22 @@ class WindowManager(object):
             )
             window_stack.titlebar.reparent(window_stack.frame, 0, 0)
             window_stack.titlebar.map()
+            window_title = self.get_window_title(window_stack.body)
+            window_title_length = self.get_string_physical_width(window_title)
+            print(window_title + ": " + str(window_title_length))
+            background_pixel = self.pixel_palette.get_named_pixel("black")
+            foreground_pixel = self.pixel_palette.get_named_pixel("white")
+            window_title_gc = self.dpy_root.create_gc(
+                font=load_font(self.dpy, FONT_NAME),
+                foreground=foreground_pixel,
+                background=background_pixel,
+            )
+            window_stack.titlebar.draw_text(
+                window_title_gc,
+                0,
+                0,
+                window_title.text.encode('utf-8')
+            )
 
             # Reposition window according to configuration
             if self.prefs.placement["auto_window_placement"] == 1:
@@ -436,10 +458,6 @@ class WindowManager(object):
                 width=frame_width,
                 height=frame_height - 24
             )
-            frame_attributes = window_stack.frame.get_attributes()
-            body_attributes = window_stack.body.get_attributes()
-            print(frame_attributes)
-            print(body_attributes)
             self.set_unfocus_window_border(window_stack.frame)
 
     def set_unfocus_window_border(self, window):
@@ -550,26 +568,25 @@ class WindowManager(object):
 
     def action_bindings(self, mapped_event_name, ev):
         try:
-            if ev.detail in self.key_alias.values():
-                if ev.child != X.NONE:
-                    window_event = {
-                        "close": lambda: self.destroy_window(ev.child),
-                        "maximize": lambda: self.resize_window(ev.child, "maximize"),
-                        "move_center": lambda: self.resize_window(ev.child, "center"),
-                        "move_left": lambda: self.resize_window(ev.child, "left"),
-                        "move_right": lambda: self.resize_window(ev.child, "right"),
-                        "move_top": lambda: self.resize_window(ev.child, "top"),
-                        "move_bottom": lambda: self.resize_window(ev.child, "bottom"),
-                        "focus": lambda: self.focus_raise(ev),
-                    }[mapped_event_name]
-                    window_event()
-                session_event = {
-                    "terminal": self.start_terminal,
-                    "window_cycle": self.cycle_windows,
-                    "launcher": lambda: self.start_launcher(ev),
-                    "exit": self.end_session,
+            if ev.child != X.NONE:
+                window_event = {
+                    "close": lambda: self.destroy_window(ev.child),
+                    "maximize": lambda: self.resize_window(ev.child, "maximize"),
+                    "move_center": lambda: self.resize_window(ev.child, "center"),
+                    "move_left": lambda: self.resize_window(ev.child, "left"),
+                    "move_right": lambda: self.resize_window(ev.child, "right"),
+                    "move_top": lambda: self.resize_window(ev.child, "top"),
+                    "move_bottom": lambda: self.resize_window(ev.child, "bottom"),
+                    "focus": lambda: self.focus_raise(ev),
                 }[mapped_event_name]
-                session_event()
+                window_event()
+            session_event = {
+                "terminal": self.start_terminal,
+                "window_cycle": self.cycle_windows,
+                "launcher": lambda: self.start_launcher(ev),
+                "exit": self.end_session,
+            }[mapped_event_name]
+            session_event()
         except Exception as e:
             print(e)
 
@@ -594,8 +611,8 @@ class WindowManager(object):
         if key_string:
             print(ev.state)
             try:
-                self.keys_down.remove(key_string)
-                print("Released: " + key_string + " - " + str(self.keys_down))
+                self.keys_down.clear()
+                print("Released keys")
             except Exception as e:
                 print(e)
 
