@@ -433,17 +433,6 @@ class WindowManager(object):
             background_color = self.pixel_palette.hex_map[self.prefs.appearance["background_color"]]
         os.system('xsetroot -solid "' + background_color + '"')
 
-    # DEBUG
-
-    def print_event_type(self, ev):
-        if ev.type in recognised_events.keys():
-            print(recognised_events[ev.type] + " event")
-
-    # SPECIAL
-
-    def start_terminal(self):
-        run_command('x-terminal-emulator')
-
     # EVENT HANDLING
 
     def keycode_to_string(self, detail):
@@ -495,6 +484,9 @@ class WindowManager(object):
             if key_string:
                 self.deskbar.command_string += key_string
                 self.deskbar.update()
+
+    def start_terminal(self):
+        run_command('x-terminal-emulator')
 
     def start_launcher(self, ev):
         if self.deskbar is not None:
@@ -563,9 +555,6 @@ class WindowManager(object):
     def event_handler(self):
         while 1:
             ev = self.dpy.next_event()
-            if self.prefs.dev["debug"] == 1:
-                self.print_event_type(ev)
-
             if ev.type in [X.EnterNotify, X.LeaveNotify, X.MapNotify]:
                 self.set_active_window_title(ev.window)
 
