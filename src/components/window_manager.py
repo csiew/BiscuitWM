@@ -2,10 +2,12 @@ import os
 import sys
 import subprocess
 from Xlib import X, display, XK, Xatom, Xcursorfont, error
+from x11util import load_font
 from ewmh import EWMH
 
 import key_combs
 from globals import *
+from models.window_stack import WindowStack
 from models.pixel_palette import PixelPalette
 from utils.repeated_timer import RepeatedTimer
 from components.deskbar import Deskbar
@@ -232,6 +234,11 @@ class WindowManager(object):
 
         if self.prefs.dev["debug"] == 1:
             print("Found window: %s", self.get_window_shortname(window))
+
+        # Initiate window stack
+        window_stack = WindowStack(body=window)
+
+        # Manage window
         self.managed_windows.append(window)
         self.exposed_windows.append(window)
         self.window_order = len(self.managed_windows) - 1
@@ -241,7 +248,7 @@ class WindowManager(object):
         mask = X.EnterWindowMask | X.LeaveWindowMask
         window.change_attributes(event_mask=mask)
 
-        self.decorate_window(window)
+        self.decorate_window(window_stack)
 
     def unmanage_window(self, window):
         if self.is_managed_window(window):
@@ -369,31 +376,89 @@ class WindowManager(object):
             else:
                 print("Invalid window position: " + position)
 
-    def decorate_window(self, window):
-        self.set_cursor(window)
-        if self.is_dock(window) is False:
-            window_dimensions = self.get_window_geometry(window)
-            window_width, window_height = window_dimensions.width, window_dimensions.height
-            window_x = 5
-            window_y = 25
+    def get_string_physical_width(self, text):
+        font = self.dpy.open_font(FONT_NAME)
+        result = font.query_text_extents(text.encode())
+        return result.overall_width
+
+    def decorate_window(self, window_stack):
+        self.set_cursor(window_stack.body)
+        if self.is_dock(window_stack.body) is False:
+            body_dimensions = self.get_window_geometry(window_stack.body)
+            body_width, body_height = body_dimensions.width, body_dimensions.height
+
+            # Generate window_stack frame
+            window_stack.frame = self.dpy_root.create_window(
+                8, 8, body_width, body_height + 24, 1,
+                self.screen.root_depth,
+                background_pixel=self.pixel_palette.get_named_pixel("white")
+            )
+            window_stack.frame.map()
+            window_stack.body.reparent(window_stack.frame, 0, 24)
+
+            frame_dimensions = self.get_window_geometry(window_stack.frame)
+            frame_width, frame_height = frame_dimensions.width, frame_dimensions.height
+            frame_x = 5
+            frame_y = 25
+
+            # Generate window_stack titlebar
+            window_stack.titlebar = self.dpy_root.create_window(
+                0, 0, frame_width, 24, 0,
+                self.screen.root_depth,
+                background_pixel=self.pixel_palette.get_named_pixel(self.prefs.appearance["active_window_border_color"])
+            )
+            window_stack.titlebar.reparent(window_stack.frame, 0, 0)
+            window_stack.titlebar.map()
+            window_title = self.get_window_title(window_stack.body)
+            window_title_length = self.get_string_physical_width(window_title)
+            print(window_title + ": " + str(window_title_length))
+            background_pixel = self.pixel_palette.get_named_pixel("black")
+            foreground_pixel = self.pixel_palette.get_named_pixel("white")
+            window_title_gc = self.dpy_root.create_gc(
+                font=load_font(self.dpy, FONT_NAME),
+                foreground=foreground_pixel,
+                background=background_pixel,
+            )
+            window_stack.titlebar.draw_text(
+                window_title_gc,
+                0,
+                0,
+                window_title.text.encode('utf-8')
+            )
+
+            # Reposition window according to configuration
             if self.prefs.placement["auto_window_placement"] == 1:
                 # Move new window out of the way of the deskbar
                 if self.prefs.placement["auto_window_fit"] == 1:
                     # Resize window to fit the screen
-                    if window_dimensions.width + window_x >= self.display_dimensions.width:
-                        window_width -= window_x * 2
-                    if window_dimensions.height + window_y >= self.display_dimensions.height:
-                        window_height -= window_y * 2
+                    if frame_width + frame_x >= self.display_dimensions.width:
+                        frame_width -= frame_x * 2
+                    if frame_height + frame_y >= self.display_dimensions.height:
+                        frame_height -= frame_y * 2
                 if self.prefs.placement["center_window_placement"] == 1:
-                    window_x = (self.display_dimensions.width - window_width) // 2
-                    window_y = (self.display_dimensions.height - window_height) // 2
-                window.configure(
-                    x=window_x,
-                    y=window_y,
-                    width=window_width,
-                    height=window_height
-                )
-            self.set_unfocus_window_border(window)
+                    frame_x = (self.display_dimensions.width - frame_width) // 2
+                    frame_y = (self.display_dimensions.height - frame_height) // 2
+
+            # Configure window_stack
+            window_stack.frame.configure(
+                x=frame_x,
+                y=frame_y,
+                width=frame_width,
+                height=frame_height
+            )
+            window_stack.titlebar.configure(
+                x=0,
+                y=0,
+                width=frame_width,
+                height=24
+            )
+            window_stack.body.configure(
+                x=0,
+                y=24,
+                width=frame_width,
+                height=frame_height - 24
+            )
+            self.set_unfocus_window_border(window_stack.frame)
 
     def set_unfocus_window_border(self, window):
         if not self.is_dock(window):
@@ -432,17 +497,6 @@ class WindowManager(object):
         elif self.prefs.appearance["background_color"] in self.pixel_palette.hex_map.keys():
             background_color = self.pixel_palette.hex_map[self.prefs.appearance["background_color"]]
         os.system('xsetroot -solid "' + background_color + '"')
-
-    # DEBUG
-
-    def print_event_type(self, ev):
-        if ev.type in recognised_events.keys():
-            print(recognised_events[ev.type] + " event")
-
-    # SPECIAL
-
-    def start_terminal(self):
-        run_command('x-terminal-emulator')
 
     # EVENT HANDLING
 
@@ -496,6 +550,9 @@ class WindowManager(object):
                 self.deskbar.command_string += key_string
                 self.deskbar.update()
 
+    def start_terminal(self):
+        run_command('x-terminal-emulator')
+
     def start_launcher(self, ev):
         if self.deskbar is not None:
             self.deskbar.toggle_launcher(state=True)
@@ -511,23 +568,18 @@ class WindowManager(object):
 
     def action_bindings(self, mapped_event_name, ev):
         try:
-            if ev.detail in self.key_alias.values():
-                if ev.child != X.NONE:
-                    window_event = {
-                        "close": lambda: self.destroy_window(ev.child),
-                        "maximize": lambda: self.resize_window(ev.child, "maximize"),
-                        "move_center": lambda: self.resize_window(ev.child, "center"),
-                        "move_left": lambda: self.resize_window(ev.child, "left"),
-                        "move_right": lambda: self.resize_window(ev.child, "right"),
-                        "move_top": lambda: self.resize_window(ev.child, "top"),
-                        "move_bottom": lambda: self.resize_window(ev.child, "bottom"),
-                        "focus": lambda: self.focus_raise(ev),
-                    }[mapped_event_name]
-                    window_event()
-        except Exception as e:
-            print(e)
-
-        try:
+            if ev.child != X.NONE:
+                window_event = {
+                    "close": lambda: self.destroy_window(ev.child),
+                    "maximize": lambda: self.resize_window(ev.child, "maximize"),
+                    "move_center": lambda: self.resize_window(ev.child, "center"),
+                    "move_left": lambda: self.resize_window(ev.child, "left"),
+                    "move_right": lambda: self.resize_window(ev.child, "right"),
+                    "move_top": lambda: self.resize_window(ev.child, "top"),
+                    "move_bottom": lambda: self.resize_window(ev.child, "bottom"),
+                    "focus": lambda: self.focus_raise(ev),
+                }[mapped_event_name]
+                window_event()
             session_event = {
                 "terminal": self.start_terminal,
                 "window_cycle": self.cycle_windows,
@@ -574,10 +626,6 @@ class WindowManager(object):
     def event_handler(self):
         while 1:
             ev = self.dpy.next_event()
-
-            if self.prefs.dev["debug"] == 1:
-                self.print_event_type(ev)
-
             if ev.type in [X.EnterNotify, X.LeaveNotify, X.MapNotify]:
                 self.set_active_window_title(ev.window)
 
